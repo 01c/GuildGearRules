@@ -278,7 +278,7 @@ local defaults = {
 
 local constants = {
     CommsPrefix = "GuildGearRules",
-    version = "1.2b",
+    version = "1.2c",
     msgPrefix = "[GGR] ",
     AddOnMessagePrefix = Color(C.GUILD, "[Guild Gear Rules] "),
     inspectString = "!gear",
