@@ -5,6 +5,12 @@ local C = {
     PARTY = "|cffaaabfe"
 }
 
+local DEBUG_LEVEL = {
+    NONE = 0,
+    LOW = 1,
+    HIGH = 2,
+}
+
 local function Color(col, text)
     return col .. text .. "|r"
 end
@@ -40,21 +46,43 @@ function GuildGearRules:GetOptions()
                 name = "Basics",
                 type = "group",
                 args = {
-                    gearOptions = {
+                    checker = {
                         order = 1,
                         type = "group",
-                        inline = true,
-                        cmdHidden = true,
+                        guiInline = true,
                         name = "Gear Checker",
+                        desc = Desc("Alerts you if nearby " .. Color(C.GUILD, "guild members") .. " break the rules.\n\nAnnounces in " .. Color(C.GUILD, "guild channel") .. " if you break the rules and when you abide them again."),
                         args = {
                             desc = {
                                 order = 1,
                                 type = "description",
-                                name = "Alerts you if nearby " .. Color(C.GUILD, "guild members") .. " break the rules.\n\nAnnounces in " .. Color(C.GUILD, "guild channel") .. " if you break the rules and when you abide them again.",
+                                name = lastDesc,
                                 fontSize = "medium",
                             },
+                            sound = {
+                                order = 2,
+                                type = "select",
+                                name = "Alert Sound",
+                                desc = "Sound to play.",
+                                set = function(info,val) self.db.profile.alertSoundID = val; self:PlaySound(true, val); end,
+                                get = function(info) return self.db.profile.alertSoundID end,
+                                values = {
+                                    [8959] = "Raid Warning",
+                                    [12867] = "Alarm Clock Warning",
+                                    [8046] = "Ragnaros",
+                                    [8809] = "Kel'Thuzad",
+                                }
+                            },
+                            test = {
+                                order = 3,
+                                type = "execute",
+                                name = "Test Alert",
+                                func = "AlertTest",
+                                desc = "Play an alert the same way it would do if it detected a nearby cheater.",
+                                disabled = function() return not IsInGuild() end
+					        },
                             footer = {
-                                order = 5,
+                                order = 4,
                                 type = "description",
                                 name = "This is a core functionality and cannot be toggled.",
                                 fontSize = "small",
@@ -93,7 +121,7 @@ function GuildGearRules:GetOptions()
                         type = "group",
                         guiInline = true,
                         name = "Distant Inspection",
-                        desc = Desc("Allow players to inspect you by whispering |cffff7eff!gear|r."),
+                        desc = Desc("Allow players to inspect you by whispering |cffff7eff!gear|r regardless if they have the addon themselves."),
                         args = {
                             desc = {
                                 order = 1,
@@ -138,7 +166,7 @@ function GuildGearRules:GetOptions()
                     welcome = {
                         order = 1,
                         name = "Welcome",
-                        desc = Desc("Alerts you with a sound when new " .. Color(C.GUILD, "guild members") .. " join."),
+                        desc = Desc("Alerts you when a new player joins the ".. Color(C.GUILD, "guild") .. "."),
                         type = "group",
                         guiInline = true,
                         args = {
@@ -154,8 +182,21 @@ function GuildGearRules:GetOptions()
                                 width = "half",
                                 name = "Enabled",
                                 desc = "Activate or deactivate the function.",
-                                set = function(info,val) self.db.profile.welcomeEnabled = val; self:PlaySound(val, self.db.profile.welcomeSoundID) end,
+                                set = function(info,val) self.db.profile.welcomeEnabled = val end,
                                 get = function(info) return self.db.profile.welcomeEnabled end
+                            },
+                            sound = {
+                                order = 3,
+                                type = "select",
+                                name = "Alert Sound",
+                                desc = "Sound to play.",
+                                disabled = function() return not self.db.profile.welcomeEnabled; end,
+                                set = function(info,val) self.db.profile.welcomeSoundID = val; self:PlaySound(true, val); end,
+                                get = function(info) return self.db.profile.welcomeSoundID end,
+                                values = {
+                                    [7094] = "Random Peasant Greetings",
+                                    [7194] = "Random Peon Greetings",
+                                }
                             },
 						},
 					},
@@ -178,8 +219,22 @@ function GuildGearRules:GetOptions()
                                 width = "half",
                                 name = "Enabled",
                                 desc = "Activate or deactivate the function.",
-                                set = function(info,val) self.db.profile.gratulateEnabled = val; self:PlaySound(val, self.db.profile.gratulateSoundID) end,
+                                set = function(info,val) self.db.profile.gratulateEnabled = val end,
                                 get = function(info) return self.db.profile.gratulateEnabled end
+                            },
+                            sound = {
+                                order = 3,
+                                type = "select",
+                                name = "Alert Sound",
+                                desc = "Sound to play.",
+                                disabled = function() return not self.db.profile.gratulateEnabled; end,
+                                set = function(info,val) self.db.profile.gratulateSoundID = val; self:PlaySound(true, val); end,
+                                get = function(info) return self.db.profile.gratulateSoundID end,
+                                values = {
+                                    [124] = "Level Up Sound",
+                                    [8455] = "PVP Victory Alliance",
+                                    [8454] = "PVP Victory Horde",
+                                },
                             },
                             party = {
                                 order = 4,
@@ -218,13 +273,18 @@ function GuildGearRules:GetOptions()
                         desc = "Scans addon usage among online guild members, returning their version if installed. Prints results in the scan results tab.",
                         disabled = function() return not IsInGuild() end
 					},
-                    debugEnabled = {
+                    debugLevel = {
                         order = 2,
-                        type = "toggle",
-                        name = "Debug Logs",
-                        desc = "Print debug logs.",
-                        set = function(info,val) self.db.profile.DebugLogs = val end,
-                        get = function(info) return self.db.profile.DebugLogs end
+                        type = "select",
+                        name = "Debugging Level",
+                        desc = "Decides which logs are printed to the debug logs tab. Set to None for best performance.",
+                        set = function(info,val) self.db.profile.DebuggingLevel = val end,
+                        get = function(info) return self.db.profile.DebuggingLevel end,
+                        values = {
+                            [0] = "None",
+                            [1] = "Low",
+                            [2] = "High",
+                        }
                     },
                     scanResults = {
                         order = 3,
@@ -261,13 +321,15 @@ end
 
 local defaults = {
     profile = {
-        DebugLogs = false,
+        DebuggingLevel = 0,
+
+        alertSoundID = 8959,
 
         inspectEnabled = true,
         inspectGuildOnly = true,
 
         welcomeEnabled = false,
-        welcomeSoundID = 6125,
+        welcomeSoundID = 7094,
 
         gratulateEnabled = false,
         gratulateSoundID = 124,
@@ -276,14 +338,20 @@ local defaults = {
     },
 }
 
+local UnitIDs = {
+    "mouseover",
+    "target"
+}
+
 local constants = {
     CommsPrefix = "GuildGearRules",
-    Version = "1.3",
+    Version = "1.3.1",
     MessagePrefix = "[GGR] ",
     AddOnMessagePrefix = Color(C.GUILD, "[Guild Gear Rules] "),
     InspectRequest = "!gear",
     DingPattern1 = '^d+i+n+g+',
     DingPattern2 = 'i .*d+i+n+g+e+d+',  
+    AlertTestItemLink = "\124cffff8000\124Hitem:19019::::::::60:::::\124h[Thunderfury, Blessed Blade of the Windseeker]\124h\124r",
 }
 
 local defaultRules = {
@@ -330,10 +398,6 @@ function GuildGearRules:OnInitialize()
 
     self:RegisterChatCommand("ggr", "ChatCommand")
     self:RegisterChatCommand("guildgearrules", "ChatCommand")
-
-    self:RegisterChatCommand("GGRTarget", "InspectCommand")
-    self:RegisterChatCommand("GGRAll", "InspectMembers")
-    self:RegisterChatCommand("GGRCheck", "CheckGuildUsers")
 
     self:Log("Initialized.")
 
@@ -412,7 +476,8 @@ function GuildGearRules:LoadGuildSettings()
         self:CheckPlayerItems()
 
         -- Dont register these events before excemptions (guild info) and realm is loaded.
-        self:RegisterEvent("UPDATE_MOUSEOVER_UNIT", "OnMouseOverUnitChanged")
+        self:RegisterEvent("UPDATE_MOUSEOVER_UNIT", "OnNewUnit", "mouseover")
+        self:RegisterEvent("PLAYER_TARGET_CHANGED", "OnNewUnit", "target")
         self:RegisterEvent("PLAYER_EQUIPMENT_CHANGED", "CheckPlayerItems")
         self:RegisterEvent("INSPECT_READY", "OnInspectReady")
     end
@@ -480,12 +545,6 @@ function GuildGearRules:OnReceiveItemInfo(event, itemID, success)
         table.remove(self.ItemCacheQueue, itemIndex)
 	    self:CheckIfCacheLoaded()
     end
-end
-
-function GuildGearRules:InspectCommand()
-    if not self:CoreEnabled() then return end
-
-    self:StartInspect("target")
 end
 
 function GuildGearRules:OnCommReceived(prefix, text, distribution, sender)
@@ -613,21 +672,28 @@ local function has_value (tab, val)
     return false
 end
 
-function GuildGearRules:Alert(text)
-    PlaySound(8959)
-    print(self.Constants.AddOnMessagePrefix .. text)
+function GuildGearRules:AlertTest()
+    self:Alert("Cheaterboy", self.Constants.AlertTestItemLink)
+end
+
+function GuildGearRules:Alert(name, itemLink)
+    self:PlaySound(true, self.db.profile.alertSoundID)
+    print(self.Constants.AddOnMessagePrefix .. "[" .. name .. "] has " .. itemLink .. ". Inform them about the rules, or screenshot it.")
 end
 
 function GuildGearRules:Info(text)
     print(self.Constants.AddOnMessagePrefix .. text)
 end
 
-function GuildGearRules:Log(text)
+function GuildGearRules:Log(text, level)
     msg = date("%H:%M:%S") .. ": " .. tostring(text) .. "\n"
 
-    if self.db == nil then print(msg) return end
-    if self.db.profile.DebugLogs then
-        self.Logs = self.Logs .. msg
+    -- If debug level not specified, default to low
+    level = level or DEBUG_LEVEL.LOW
+
+    if self.db == nil then print(self.Constants.AddOnMessagePrefix .. "Error: Profile not initialized. Tried to log: " .. text) return end
+    if self.db.profile.DebuggingLevel >= level then
+        self.Logs = msg .. self.Logs
         LibStub("AceConfigRegistry-3.0"):NotifyChange("GuildGearRules");
     end
 end
@@ -640,8 +706,7 @@ function GuildGearRules:CheckPlayerItems()
 
     local gearValid = true
     -- Go through each equipment slot.
-    for i = 1,19,1
-    do
+    for i = 1,19 do
         local itemLocation = ItemLocation:CreateFromEquipmentSlot(i)
         -- Only check slots that are not empty.
         if C_Item.DoesItemExist(itemLocation) == true then
@@ -655,10 +720,15 @@ function GuildGearRules:CheckPlayerItems()
                     gearValid = false
                     if IsCheating == false then
                         local itemLink = C_Item.GetItemLink(itemLocation)
+                        self:PlaySound(true, self.db.profile.alertSoundID)
                         SendChatMessage(self.Constants.MessagePrefix .. "Opsies, " .. itemLink .. " is equipped!", "GUILD")
                         IsCheating = true
                     end
                 end
+            else
+                --local itemID = C_Item.GetItemID(itemLocation)
+                --self:Log("!!!!!!!Checking item " .. i)
+                --self:ItemTooltip(itemID)
             end
         end
     end
@@ -679,20 +749,29 @@ function GuildGearRules:TimerFeedback()
         return
     end
 
+    for i=1, 40 do 
+        self:StartInspect("nameplate"..i)
+    end
+
     self.PlayerUnitIDs = { }
 
     self:InspectMembers()
 end
 
-function GuildGearRules:OnMouseOverUnitChanged()
+function GuildGearRules:OnNewUnit(unitID, event)
     if not self:CoreEnabled() then return end
 
     -- Prevent from double-checking party, raid members or player, locking the inspect function.
-    if UnitInRaid("mouseover") or UnitInParty("mouseover") or UnitGUID("mouseover") == UnitGUID("player") then
+    if UnitInRaid(unitID) or UnitInParty(unitID) or UnitGUID(unitID) == UnitGUID("player") then
         return
     end
 
-    self:StartInspect("mouseover")
+    -- Check if unit is same faction first to prevent error from CanInspect on other faction.
+    if UnitFactionGroup(unitID) ~= UnitFactionGroup("player") then
+        return nil
+    end
+
+    self:StartInspect(unitID)
 end
 
 function GuildGearRules:InspectMembers()
@@ -729,15 +808,39 @@ function GuildGearRules:CanInspect(unit)
         -- Cannot inspect this unit.
         return nil
     end
+  
+    local name, realm = UnitName(unit)
+
+    -- NOTE: Originally checked if unit was not currently being inspected. Even if ClearInspectPlayer() was not being called, the window would bug.
+    -- Probably because cache was being removed. Now make sure inspect window is not open at all.
+    if self:IsInspectWindowOpen() then return nil end
 
     -- Ignore players not in the same guild.
-    local name, realm = UnitName(unit)
     if not self:IsGuildie(name, realm) then
-        self:Log(name .. " is not in the same guild. Not inspecting.")
+        self:Log(name .. " is not in the same guild. Not inspecting.", DEBUG_LEVEL.HIGH)
         return nil
     end
 
     return name
+end
+
+function GuildGearRules:IsInspecting(name)
+    if self:IsInspectWindowOpen() then
+        local currentInspectUnitName = InspectNameText:GetText()
+        if currentInspectUnitName == name then
+            self:Log("Current inspecting " .. currentInspectUnitName .. ", won't request data.", DEBUG_LEVEL.HIGH)
+            return true
+        end
+    end
+    return false
+end
+
+function GuildGearRules:IsInspectWindowOpen()
+    local inspectFrame = InspectPaperDollItemsFrame
+    if inspectFrame ~= nil and inspectFrame:IsVisible() then
+        return true
+    end
+    return false
 end
 
 function GuildGearRules:StartInspect(unit)
@@ -779,36 +882,59 @@ function GuildGearRules:PartyInformation()
     return partyType, count, players, maxPlayers
 end
 
-function GuildGearRules:OnInspectReady(event, inspecteeGUID)
+-- Attempts to get GUID from UnitID
+function GuildGearRules:GetUnitID(guid)
     local unitID = nil
-    -- Do nothing if no such GUID stored. Other AddOn might be calling.
-    if self.PlayerUnitIDs[inspecteeGUID] == nil then
-        -- Unless the GUID exists in raid or party, grab it anyway.
-        -- This way units that the player inspects will be auto-scanned, and not scanned again for 5 seconds.
-        local found = false
+    -- No such GUID stored. Other AddOn might be calling.
+    if self.PlayerUnitIDs[guid] == nil then
+        -- Try to resolve anyway. This way units that the player inspects will be auto-scanned, and not scanned again for 5 seconds.
 
         local partyType, count = self:PartyInformation()
-        if count == 0 then return end
-
-        for i = 1, count do
-            unitID = partyType .. i
-            if UnitGUID(unitID) == inspecteeGUID then
-                local name, realm = UnitName()
-                if self:IsGuildie(name, realm) then
-                    found = true
+        -- Check party and raid members.
+        local partyType, count = self:PartyInformation()
+        if count > 0 then
+            for i=1, count do
+                unitID = partyType .. i
+                if UnitGUID(unitID) == guid then
+                    local name, realm = UnitName(unitID)
+                    if self:IsGuildie(name, realm) then
+                        return unitID, false
+                    end
                 end
-                break
             end
         end
 
-        if not found then return end
+        -- Nameplates.
+        for i=1, 40 do 
+            unitID = "nameplate"..i
+            if UnitGUID(unitID) == guid then
+                return unitID, false
+            end
+        end
+
+        -- Target, mouseover.
+        for i=1, table.getn(UnitIDs) do
+            unitID = UnitIDs[i]
+            if UnitGUID(unitID) == guid then
+                return unitID, false
+            end
+        end
     else
         -- Retrieve stored unitID by event GUID, e.g. "target".
-        unitID = self.PlayerUnitIDs[inspecteeGUID];
-        -- Get current GUID of unitID, e.g. "target".
-        local currentGuid = UnitGUID(unitID); 
-        -- Cancel if event GUID does not match current GUID. Player target or party members might have changed.
-        if inspecteeGUID ~= currentGuid then return end
+        unitID = self.PlayerUnitIDs[guid];
+        -- Check if event GUID matches current GUID, e.g. "target". Player target or party members might have changed.
+        if guid == UnitGUID(unitID) then 
+            return unitID, true
+        end
+    end
+    return nil
+end
+
+function GuildGearRules:OnInspectReady(event, inspecteeGUID)
+    local unitID, requested = self:GetUnitID(inspecteeGUID)
+    if unitID == nil then
+        self:Log("Receiving data for " .. inspecteeGUID .. ". UnitID not resolved.")
+        return
     end
 
     -- Update inspected time, ensuring we don't ask for a new inspect while sill receiving information.
@@ -829,7 +955,7 @@ function GuildGearRules:OnInspectReady(event, inspecteeGUID)
                 local itemID, unknown = GetInventoryItemID(unitID, i);
                 if not has_value(self.Rules.ItemExeceptionsIDs, itemID) then
                     local itemLink = GetInventoryItemLink(unitID, i)
-                    self:Alert(name .. " uses " .. itemLink .. ".")
+                    self:Alert(name, itemLink)
                 end
             -- Check for illegal attributes.
             else
@@ -845,8 +971,26 @@ function GuildGearRules:OnInspectReady(event, inspecteeGUID)
             end
         end
     end
-    ClearInspectPlayer()
-    self:Log("Received data for " .. filledSlots .. " slots on " .. unitID .. ", " .. name .. " (" .. inspecteeGUID .. ").")
+
+    -- Clear data (as recommended by Blizzard) if the unit was requested and inspection window is not open.
+    -- If a nearby guildie is scanned running past, and we clear, the inspection window will bug out.
+    if requested and self:IsInspectWindowOpen() == false then
+        self:Log("Clearing inspect.")
+        ClearInspectPlayer()
+    end
+
+    self:Log("Handling data for " .. filledSlots .. " slots on " .. unitID .. ", " .. name .. " (" .. inspecteeGUID .. ") handled.")
+end
+
+function GuildGearRules:ItemTooltip(itemID)
+    ScannerTooltip:SetHyperlink("item:" .. itemID)
+    for i=1,ScannerTooltip:NumLines() do 
+        local mytext = _G["ScannerTooltipTextLeft"..i] 
+        if mytext ~= nil then
+            local text=mytext:GetText()
+            print(i .. "=" .. text)
+        end
+    end
 end
 
 -- IsGuildie("Tonedo") | IsGuildie("Tonedo-HydraxianWatelords"), IsGuildie("Tonedo", nil) IsGuildie("Tonedo", "HydraxianWatelords")
@@ -910,12 +1054,12 @@ end
 
 function GuildGearRules:OnGuildUpdate(event, unitID)
     self:Log(event .. " " .. unitID)
-    self:Log(GetGuildInfo("player"))
     if unitID ~= "player" then
         return
     end
 
     self:UnregisterEvent("UPDATE_MOUSEOVER_UNIT")
+    self:UnregisterEvent("PLAYER_TARGET_CHANGED");
     self:UnregisterEvent("PLAYER_EQUIPMENT_CHANGED");
     self:UnregisterEvent("INSPECT_READY");
 
