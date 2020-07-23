@@ -1,0 +1,11 @@
+## Interface: 11305
+## Version: 1.2b
+## Title: Guild Gear Rules
+## Author: Tonedo aka 01c
+## Notes: Automated and easier checking of rules for guilds with specific gear rules, with some social extras.
+## SavedVariables: GuildGearRulesDB
+## OptionalDeps: Ace3
+## X-Embeds: Ace3
+
+embeds.xml
+Core.lua
