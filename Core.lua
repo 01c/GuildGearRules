@@ -32,7 +32,7 @@ function GuildGearRules:GetOptions()
             mainDesc = {
                 order = 0.5,
                 type = "description",
-                name = "|cfffff569Version|r " .. self.Constants.version,
+                name = "|cfffff569Version|r " .. self.Constants.Version,
                 fontSize = "small",
             },
             basics = {
@@ -278,12 +278,12 @@ local defaults = {
 
 local constants = {
     CommsPrefix = "GuildGearRules",
-    version = "1.2e",
-    msgPrefix = "[GGR] ",
+    Version = "1.2f",
+    MessagePrefix = "[GGR] ",
     AddOnMessagePrefix = Color(C.GUILD, "[Guild Gear Rules] "),
-    inspectString = "!gear",
-    dingPattern1 = '^d+i+n+g+',
-    dingPattern2 = 'i .*d+i+n+g+e+d+',  
+    InspectRequest = "!gear",
+    DingPattern1 = '^d+i+n+g+',
+    DingPattern2 = 'i .*d+i+n+g+e+d+',  
 }
 
 local defaultRules = {
@@ -422,7 +422,7 @@ function GuildGearRules:OnEnable()
     self:RegisterEvent("CHAT_MSG_SYSTEM", "OnSystemMessage");
     self:RegisterEvent("CHAT_MSG_GUILD", "OnMessage", "GUILD");
     self:RegisterEvent("CHAT_MSG_PARTY", "OnMessage", "PARTY");
-    SendSystemMessage("Guild Gear Rules loaded (version " .. self.Constants.version .. "). Type /ggr for help.");
+    SendSystemMessage("Guild Gear Rules loaded (version " .. self.Constants.Version .. "). Type /ggr for help.");
 end
 
 function GuildGearRules:OnCacheLoaded()
@@ -499,7 +499,7 @@ function GuildGearRules:OnCommReceived(prefix, text, distribution, sender)
     local contents = string.sub(text, 3)
 
     if identifier == "01" then
-        self:SendCommMessage(self.Constants.CommsPrefix, "02" .. self.Constants.version, "WHISPER", sender)
+        self:SendCommMessage(self.Constants.CommsPrefix, "02" .. self.Constants.Version, "WHISPER", sender)
     elseif identifier == "02" then
         self.AddonGuildies[sender] = contents
     end
@@ -652,7 +652,7 @@ function GuildGearRules:CheckPlayerItems()
                     gearValid = false
                     if IsCheating == false then
                         local itemLink = C_Item.GetItemLink(itemLocation)
-                        SendChatMessage(self.Constants.msgPrefix .. "Opsies, " .. itemLink .. " is equipped!", "GUILD")
+                        SendChatMessage(self.Constants.MessagePrefix .. "Opsies, " .. itemLink .. " is equipped!", "GUILD")
                         IsCheating = true
                     end
                 end
@@ -662,7 +662,7 @@ function GuildGearRules:CheckPlayerItems()
 
     if gearValid == true and IsCheating == true then
         IsCheating = false
-        SendChatMessage(self.Constants.msgPrefix .. "I'm cheating no more, I promise!", "GUILD")
+        SendChatMessage(self.Constants.MessagePrefix .. "I'm cheating no more, I promise!", "GUILD")
     end
 
     self:Log("Scanning player items.")
@@ -871,7 +871,7 @@ function GuildGearRules:IsGuildie(playerName, realm)
 end
 
 function GuildGearRules:OnWhisper(event, text, targetPlayer)
-    if self.db.profile.inspectEnabled and text == self.Constants.inspectString then
+    if self.db.profile.inspectEnabled and text == self.Constants.InspectRequest then
         if self.db.profile.inspectGuildOnly and not self:IsGuildie(targetPlayer) then
             return
         end
@@ -916,7 +916,7 @@ function GuildGearRules:OnMessage(channel, event, text, playerName)
     end
 
     -- Ding alert.
-    if self.db.profile.gratulateEnabled and (string.match(string.lower(text), self.Constants.dingPattern1) or string.match(string.lower(text), self.Constants.dingPattern2)) then
+    if self.db.profile.gratulateEnabled and (string.match(string.lower(text), self.Constants.DingPattern1) or string.match(string.lower(text), self.Constants.DingPattern2)) then
         if (channel == "PARTY" and not self.db.profile.gratulateParty) or (channel == "GUILD" and not self.db.profile.gratulateGuild) then
             return
         end
