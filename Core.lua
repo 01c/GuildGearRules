@@ -278,7 +278,7 @@ local defaults = {
 
 local constants = {
     CommsPrefix = "GuildGearRules",
-    Version = "1.2f",
+    Version = "1.3",
     MessagePrefix = "[GGR] ",
     AddOnMessagePrefix = Color(C.GUILD, "[Guild Gear Rules] "),
     InspectRequest = "!gear",
@@ -320,6 +320,9 @@ function GuildGearRules:OnInitialize()
 
     self.db = LibStub("AceDB-3.0"):New("GuildGearRulesDB", defaults, true)
     self.ScanTimer = self:ScheduleRepeatingTimer("TimerFeedback", 3)
+
+    self.ScannerTooltip = CreateFrame("GameTooltip", "ScannerTooltip", nil, "GameTooltipTemplate");
+    ScannerTooltip:SetOwner(WorldFrame, "ANCHOR_NONE");
 
     local options = self:GetOptions()
     LibStub("AceConfig-3.0"):RegisterOptionsTable("GuildGearRules", options)
@@ -828,6 +831,17 @@ function GuildGearRules:OnInspectReady(event, inspecteeGUID)
                     local itemLink = GetInventoryItemLink(unitID, i)
                     self:Alert(name .. " uses " .. itemLink .. ".")
                 end
+            -- Check for illegal attributes.
+            else
+                --[[local itemID, unknown = GetInventoryItemID(unitID, i);
+                ScannerTooltip:SetHyperlink("item:" .. itemID)
+                for j=1,ScannerTooltip:NumLines() do 
+                    local mytext=_G["ScannerTooltipTextLeft"..i] 
+                    if mytext ~= nil then
+                        local text=mytext:GetText()
+                        print(text)
+                    end
+                end--]]
             end
         end
     end
@@ -929,9 +943,6 @@ function GuildGearRules:OnSystemMessage(event, text)
     -- New member alert.
     if self.db.profile.welcomeEnabled and string.find(string.lower(text), " has joined the guild.") then
         self:PlaySound(self.db.profile.welcomeEnabled, self.db.profile.welcomeSoundID)
-
-        replyIndex = math.random(table.getn(WelcomeReplies))
-        message = WelcomeReplies[replyIndex] .. "!"
     end
 end
 
