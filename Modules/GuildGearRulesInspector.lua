@@ -263,7 +263,7 @@ function GuildGearRulesInspector:ShouldScan(unitID)
     local guid = UnitGUID(unitID);
     if (guid == nil) then return nil, nil; end
 
-    if (not UnitIsPlayer(unitID)) then
+    if (not UnitIsPlayer(unitID) and not UnitIsUnit(unitID, "player")) then
         return nil, nil;
     end
 
@@ -534,7 +534,7 @@ end
 
 function GuildGearRulesInspector:OnNewUnit(unitID, event)
     -- Skip target and mouseover if nameplates are enabled to prevent clogging, also don't inspect player.
-    if (self:NameplatesEnabled() or UnitIsUnit(unitID, "player")) then return; end
+    if (self:NameplatesEnabled()) then return; end
     
     -- Only allow one direct inspect per second.
     if (self.LastDirectInspectTime ~= time()) then

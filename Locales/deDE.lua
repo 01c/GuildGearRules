@@ -1,5 +1,5 @@
-local L = LibStub("AceLocale-3.0"):NewLocale("GuildGearRules", "deDE") 
-if not L then return end
+local L = LibStub("AceLocale-3.0"):NewLocale("GuildGearRules", "deDE");
+if (not L) then return; end
 
 L['ATTRIBUTE_SPELLPOWER'] = ".*Erhöht durch Zauber und magische Effekte zugefügten Schaden und Heilung um bis zu .*." 
 
