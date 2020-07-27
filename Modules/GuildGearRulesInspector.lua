@@ -194,7 +194,7 @@ function GuildGearRulesInspector:ScanPlayer()
 
     -- Stopped cheating.
     if (self.WasCheatingBeforeScan and not self.IsCheating) then
-        SendChatMessage(self.Core.Constants.MessagePrefix .. L["ALERT_MESSAGE_GUILD_CHAT_ENDED"], "PARTY");
+        SendChatMessage(self.Core.Constants.MessagePrefix .. L["ALERT_MESSAGE_GUILD_CHAT_ENDED"], "GUILD");
     end
 end
 
@@ -516,7 +516,7 @@ function GuildGearRulesInspector:RegisterCheat(characterInfo, itemLink, slot)
             cheater.HasAlerted = true;
 
             if (UnitGUID("player") == characterInfo.GUID) then
-                SendChatMessage(self.Core.Constants.MessagePrefix .. _cstr(L["ALERT_MESSAGE_GUILD_CHAT_START"], itemLink), "PARTY");
+                SendChatMessage(self.Core.Constants.MessagePrefix .. _cstr(L["ALERT_MESSAGE_GUILD_CHAT_START"], itemLink), "GUILD");
             end
         end
 
