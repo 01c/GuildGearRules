@@ -38,17 +38,19 @@ local COMMS = {
 
 function GuildGearRules:OnInitialize()
     self.AddOnsInstalled = { };
-    local count = GetNumAddOns()
+    local count = GetNumAddOns();
     for i = 1, count do
         name, title, notes, loadable, reason, security, newVersion = GetAddOnInfo(i);
-        table.insert(self.AddOnsInstalled, name)
+        if (loadable or reason == "DEMAND_LOADED") then
+            table.insert(self.AddOnsInstalled, name);
+        end       
     end
 
     self.LastLog = "";
     self.LogLines = { };
     self.Constants = {
         CommsPrefix = "GuildGearRules",
-        Version = "1.3.2b",
+        Version = "1.3.2c",
         MessagePrefix = "[GGR] ",
         AddOnMessagePrefix = "|cff3ce13f[" .. L["GGR"] .. "]|r ",
         InspectRequest = "!gear",
@@ -279,6 +281,7 @@ end
 function GuildGearRules:OnScanEnd()
     self.ScanGuildResults = "";
     count = 0;
+
     for player, result in pairs(self.GuildScanReplies) do
         if (self.GuildScanRunning == 0) then
             if (result == "?") then
