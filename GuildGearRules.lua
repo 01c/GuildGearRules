@@ -48,7 +48,7 @@ function GuildGearRules:OnInitialize()
     self.LogLines = { };
     self.Constants = {
         CommsPrefix = "GuildGearRules",
-        Version = "1.3.2",
+        Version = "1.3.2b",
         MessagePrefix = "[GGR] ",
         AddOnMessagePrefix = "|cff3ce13f[" .. L["GGR"] .. "]|r ",
         InspectRequest = "!gear",

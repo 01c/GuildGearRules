@@ -43,6 +43,9 @@ function GuildGearRulesInspector:Initialize(core)
     for i = 1, 4 do
        table.insert(self.UnitIDs, "party"..i)
     end
+
+    InspectFrame_LoadUI();
+    self:HookInspectFrame();
 end
 
 local function has_value(tab, val)
@@ -53,6 +56,13 @@ local function has_value(tab, val)
     end
 
     return false
+end
+
+function GuildGearRulesInspector:HookInspectFrame()
+    if (InspectFrame ~= nil and not self.Hooked) then
+        self:Hook("InspectFrame_Show", "OnInspectRequest", true);
+        self.Hooked = true;
+    end
 end
 
 function GuildGearRulesInspector:OnInspectRequest(unit)
@@ -100,18 +110,13 @@ end
 function GuildGearRulesInspector:Update()
     if (not self.IsActive) then return; end
 
-    -- Unfortunately we cannot hook the inspect frame before it has been seen once. The first inspect will bug out.
-    if (InspectFrame ~= nil and not self.Hooked) then
-        self:Hook("InspectFrame_Show", "OnInspectRequest", true);
-        self.Hooked = true;
-    end
+    self:HookInspectFrame();
 
     if (self.InspectedUnitID) then
         -- Forget about request if unit is too far away.
         if (not CheckInteractDistance(self.InspectedUnitID, 3) or not CanInspect(self.InspectedUnitID, false)) then
             self.Core:Log("Cancelling normal inspection.");
             self.InspectedUnitID = nil;
-            InspectFrame.unit = nil;
         else
             self.Core:Log("Repeating normal inspection.");
             NotifyInspect(self.InspectedUnitID);
@@ -307,30 +312,24 @@ function GuildGearRulesInspector:PartyInformation()
 end
 
 -- Attempts to get GUID from UnitID.
-function GuildGearRulesInspector:GetUnitID(guid)
+function GuildGearRulesInspector:GetUnitID(guid, ignoreGuild)
+    ignoreGuild = ignoreGuild or false;
     -- Try to resolve GUID regardless if we requested it. This way units that the player inspects will be auto-scanned, and not scanned again for X seconds.
     for i=1, #self.UnitIDs do
         local unitID = self.UnitIDs[i];
-        if (self:GUIDMatchesGuildMember(unitID, guid)) then 
-            return unitID;
+        if (UnitGUID(unitID) == guid) then
+            local name, realm = UnitName(unitID);
+            if (self.Core:IsGuildMember(name, realm) or ignoreGuild) then 
+                return unitID;
+            end
         end
     end
     return nil;
 end
 
-function GuildGearRulesInspector:GUIDMatchesGuildMember(unitID, guid)
-    if (UnitGUID(unitID) == guid) then 
-        local name, realm = UnitName(unitID);
-        if (self.Core:IsGuildMember(name, realm)) then 
-            return true;
-        end
-    end
-    return false;
-end
-
 function GuildGearRulesInspector:OnInspectReady(event, inspecteeGUID)
     local scanRequest = true;
-    if (self.InspectedUnitID and self:GetUnitID(inspecteeGUID) == self.InspectedUnitID) then
+    if (self.InspectedUnitID and self:GetUnitID(inspecteeGUID, true) == self.InspectedUnitID) then
         self.InspectedUnitID = nil;
         scanRequest = false;
         self.Core:Log("Received normal inspection.");
@@ -338,7 +337,7 @@ function GuildGearRulesInspector:OnInspectReady(event, inspecteeGUID)
 
     local unitID = self:GetUnitID(inspecteeGUID);
     if (unitID == nil) then
-        self.Core:Log("Receiving for " .. inspecteeGUID .. ". UnitID not resolved.", DEBUG_MSG_TYPE.ERROR);
+        self.Core:Log("Receiving for " .. inspecteeGUID .. ". UnitID not resolved to guild member.", DEBUG_MSG_TYPE.ERROR);
         return;
     end
 
