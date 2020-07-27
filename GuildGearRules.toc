@@ -1,5 +1,5 @@
 ## Interface: 11305
-## Version: 1.3.1
+## Version: 1.3.2
 ## Title: Guild Gear Rules
 ## Author: Tonedo aka 01d
 ## Notes: Automated and easier checking of rules for guilds with specific gear rules, with some social extras.
@@ -8,4 +8,10 @@
 ## X-Embeds: Ace3
 
 embeds.xml
-Core.lua
+
+Locales\Locales.xml
+
+GuildGearRules.lua
+Modules\GuildGearRulesCache.lua
+Modules\GuildGearRulesInspector.lua
+Modules\GuildGearRulesUserInterface.lua
