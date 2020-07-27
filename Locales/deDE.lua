@@ -54,7 +54,7 @@ L["RULES_MAX_ITEM_QUALITY"] = "Maximale Gegenstandsqualität"
 L["RULES_EXCEPTIONS_ALLOWED"] = "erlaubte Ausnahmen"
 L["RULES_ALWAYS_ALLOWED"] = "Ausnahmen"
 L["RULES_EXTRAS"] = "Zusätzlich"
-L["RULES_TAG_SP"] = "Kein genereller Zauberkraft"
+L["RULES_TAG_SP"] = "Keine generelle Zauberkraft"
 L["RULES_TAG_PVP"] = "Schlachtfelder ausgenommen"
 L["RULES_TAG_PVE"] = "Nur in Schlachtzügen und Gruppeninstanzen"
 
