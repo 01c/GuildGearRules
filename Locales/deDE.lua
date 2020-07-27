@@ -90,8 +90,8 @@ L["CHEATER_INFORMATION_ITEM_SEEN"] = "%s gesehen %s."
 
 -- Advanced tab.
 L["ADVANCED"] = "Erweitert"
-L["SCAN_GGR"] = "Untersuche Gildenmitglieder"
-L["SCAN_GGR_DESC"] = "Untersucht die Addon Nutzung der Gildenmitgliedern und berichtet welche Version sie einsetzen falls es installiert ist. Die Ergebnisse werden im Ergebnis Bereich ausgegeben."
+L["SCAN_GGR"] = "Überprüfe GGR Nutzung"
+L["SCAN_GGR_DESC"] = "Überprüfe GGR Nutzung in der Gilde."
 L["SCAN_GGR_MESSAGE"] = "hat v%s installiert."
 L["SCAN_GGR_MESSAGE_NOT_INSTALLED"] = "kein GGR installiert"
 
@@ -108,6 +108,7 @@ L["SCAN_STARTED"] = "Suche nach anderen Nutzern in der Gilde - bitte warte %s Se
 L["SCAN_ALREADY_RUNNING"] = "Suche läuft schon, bitte warten."
 L["SCAN_COMPLETED"] = "%i Mitglieder wurden untersucht."
 
+
 -- Debugging tab.
 L["DEBUGGING"] = "Fehlersuche"
 L["DEBUGGING_LEVEL"] = "Stufe der Fehlersuche"
@@ -123,4 +124,4 @@ L["DEBUG_LOGS"] = "Fehlersuche Protokoldatei"
 L["DEBUG_CACHE"] = "Fehler Puffer"
 
 -- Scanned character is cheating, definitely localize.
-L["ALERT_MESSAGE_SELF"] = "Benutzt %s! FÃƒÂ¼r mehr Info: %s OberflÃƒÂ¤che"
+L["ALERT_MESSAGE_SELF"] = "Benutzt %s! Für mehr Info: %s Oberfläche"
