@@ -498,7 +498,7 @@ function GuildGearRulesUserInterface:GetItemsAllowed()
 
     local text = "";
     for i = 1, #self.Core.Rules.ItemsAllowedIDs do
-        text = text .. self:DeadItemLink(self.Core.Rules.ItemsAllowedIDs[i]) .. "  ";
+        text = text .. self:DeadItemLink(self.Core.Rules.ItemsAllowedIDs[i]) .. " ";
     end
     return text;
 end

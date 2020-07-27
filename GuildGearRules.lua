@@ -50,7 +50,7 @@ function GuildGearRules:OnInitialize()
     self.LogLines = { };
     self.Constants = {
         CommsPrefix = "GuildGearRules",
-        Version = "1.3.2c",
+        Version = "1.3.3",
         MessagePrefix = "[GGR] ",
         AddOnMessagePrefix = "|cff3ce13f[" .. L["GGR"] .. "]|r ",
         InspectRequest = "!gear",
@@ -404,7 +404,7 @@ end
 function GuildGearRules:EveryMinute()
     -- Check for new guild information.
     local guildInfo = GetGuildInfoText();
-    if (guildInfo ~= nil or guildInfo:len() == 0 or guildInfo == self.LastRetrievedGuildInfo) then return; end
+    if (guildInfo == nil or guildInfo:len() == 0 or guildInfo == self.LastRetrievedGuildInfo) then return; end
     self:LoadGuildSettings();
 end
 

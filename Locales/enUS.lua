@@ -116,12 +116,9 @@ L["DEBUGGING_LEVEL_0"] = "None"
 L["DEBUGGING_LEVEL_1"] = "Errors"
 L["DEBUGGING_LEVEL_2"] = "Errors and Warnings"
 L["DEBUGGING_LEVEL_3"] = "All"
-
 L["DEBUG_CACHE"] = "Debug Cache"
-
 L["CLEAR_DEBUG_LOGS"] = "Clear Logs"
 L["CLEAR_DEBUG_LOGS_DESC"] = "Clears the logs."
-
 L["DEBUG_LOGS"] = "Logs"
 
 -- Player is cheating. These should not be localized to other languages than the primary language since they are shared with other players.

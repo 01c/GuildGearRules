@@ -1,4 +1,4 @@
 local L = LibStub("AceLocale-3.0"):NewLocale("GuildGearRules", "frFR") 
 if not L then return end
 
-L['ATTRIBUTE_SPELLPOWER'] = ".*Augmente les dÈg‚ts et les soins produits par les sorts et effets magiques de .* au maximum." 
+L['ATTRIBUTE_SPELLPOWER'] = ".*Augmente les d√©g√¢ts et les soins produits par les sorts et effets magiques de .* au maximum." 
