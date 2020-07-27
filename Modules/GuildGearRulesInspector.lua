@@ -263,7 +263,8 @@ function GuildGearRulesInspector:ShouldScan(unitID)
     local guid = UnitGUID(unitID);
     if (guid == nil) then return nil, nil; end
 
-    if (not UnitIsPlayer(unitID) and not UnitIsUnit(unitID, "player")) then
+    -- Ignore non-players other than user.
+    if (not UnitIsPlayer(unitID) or UnitIsUnit(unitID, "player")) then
         return nil, nil;
     end
 

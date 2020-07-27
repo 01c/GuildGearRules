@@ -37,20 +37,11 @@ local COMMS = {
 };
 
 function GuildGearRules:OnInitialize()
-    self.AddOnsInstalled = { };
-    local count = GetNumAddOns();
-    for i = 1, count do
-        name, title, notes, loadable, reason, security, newVersion = GetAddOnInfo(i);
-        if (loadable or reason == "DEMAND_LOADED") then
-            table.insert(self.AddOnsInstalled, name);
-        end       
-    end
-
     self.LastLog = "";
     self.LogLines = { };
     self.Constants = {
         CommsPrefix = "GuildGearRules",
-        Version = "1.3.4",
+        Version = GetAddOnMetadata("GuildGearRules", "version");
         MessagePrefix = "[GGR] ",
         AddOnMessagePrefix = "|cff3ce13f[" .. L["GGR"] .. "]|r ",
         InspectRequest = "!gear",
@@ -233,6 +224,18 @@ function GuildGearRules:LoadRealm()
     end
 end
 
+function GuildGearRules:GetActiveAddOns()
+    local activeAddOns = { };
+    local count = GetNumAddOns();
+    for i = 1, count do
+        name, title, notes, loadable, reason, security, newVersion = GetAddOnInfo(i);
+        if (IsAddOnLoaded(name)) then
+            table.insert(activeAddOns, name);
+        end       
+    end
+    return activeAddOns;
+end
+
 function GuildGearRules:OnCommReceived(prefix, text, distribution, sender)
     -- Only accept addon calls from guild members.
     if (prefix ~= self.Constants.CommsPrefix or not self:IsGuildMember(sender)) then
@@ -246,16 +249,17 @@ function GuildGearRules:OnCommReceived(prefix, text, distribution, sender)
         self:SendCommMessage(self.Constants.CommsPrefix, COMMS.SCAN_GGR_REPLY .. self.Constants.Version, "WHISPER", sender)
     elseif (identifier == COMMS.SCAN_ADDONS) then
         local reply = "0";
+        local activeAddOns = self:GetActiveAddOns();
         for arg in contents:gmatch('[^,%s]+') do
-            for i = 1, #self.AddOnsInstalled do
-                if (self.AddOnsInstalled[i]:lower():find(arg:lower(), 1, true)) then
+            for i = 1, #activeAddOns do
+                if (activeAddOns[i]:lower():find(arg:lower(), 1, true)) then
                     local start = "";
                     if (reply == "0") then
                         reply = ""; 
                     elseif (reply:len() > 1) then
                         start = ", ";
                     end
-                    reply = reply .. start .. self.AddOnsInstalled[i];
+                    reply = reply .. start .. activeAddOns[i];
                     -- Only allow one reply per argument.
                     break;
                 end
