@@ -141,7 +141,10 @@ L["CHEATER_INFORMATION_ITEM_SEEN"] = "%s gesehen %s."
 L["CHEATER_STATUS_CHEATING"] = "(Betrügen)"
 L["CHEATER_STATUS_CLEARED"] = "(Bereinigt)"
 L["CHEATER_STATUS_MIXED"] = "(Gemischt)"
-
+L["CHEATER_ITEMS_EQUIPPED_CURRENTLY"] = "Aktuell ausgerüstet:"
+L["CHEATER_ITEMS_EQUIPPED_PREVIOUSLY"] = "Vorher equipped:"
+L["CHEATER_BUFFS_ACTIVE_CURRENTLY"] = "Aktuell aktiv:"
+L["CHEATER_BUFFS_ACTIVE_PREVIOUSLY"] = "Vorher aktiv:"
 -- Advanced tab.
 L["ADVANCED"] = "Erweitert"
 
