@@ -11,12 +11,14 @@ local DEBUG_MSG_TYPE = {
 function GuildGearRulesInspector:Initialize(core)
     self.Core = core;
     self.IsActive = false;
-    self.InspectIndex = 0;
+    self.Network = self.Core:GetModule("GuildGearRulesNetwork");
+
+    self.LastDataTransmission = 0;
+    self.DataTransmissionCooldown = 1;
+
     self.SuccessfulInspectGUIDTimes = { };
     self.AttemptedInspectGUIDTimes = { };
     self.LastDirectInspectTime = 0;
-    self.IsCheating = false;
-    self.WasCheatingBeforeScan = false;
     self.Hooked = false;
     self.InspectedUnitID = nil;
     self.Cheaters = { };
@@ -46,16 +48,9 @@ function GuildGearRulesInspector:Initialize(core)
 
     InspectFrame_LoadUI();
     self:HookInspectFrame();
-end
 
-local function has_value(tab, val)
-    for index, value in ipairs(tab) do
-        if value == val then
-            return index
-        end
-    end
-
-    return false
+    self.Core:Log(tostring(self) .. " initialized.");
+    return self;
 end
 
 function GuildGearRulesInspector:HookInspectFrame()
@@ -76,12 +71,17 @@ function GuildGearRulesInspector:SetActive(active)
         self:ScanPlayer();
         self:RegisterEvent("UPDATE_MOUSEOVER_UNIT", "OnNewUnit", "mouseover");
         self:RegisterEvent("PLAYER_TARGET_CHANGED", "OnNewUnit", "target");
+        self:RegisterEvent("UNIT_AURA", "ScanPlayer");
+        -- Ensure buffs that could not be removed when in combat are removed.
+        self:RegisterEvent("PLAYER_REGEN_ENABLED", "ScanPlayer");
         self:RegisterEvent("PLAYER_EQUIPMENT_CHANGED", "ScanPlayer");
         self:RegisterEvent("INSPECT_READY", "OnInspectReady");
     elseif (not active and self.IsActive) then
         self.Core:Log("Deactivating inspector.");
         self:UnregisterEvent("UPDATE_MOUSEOVER_UNIT");
         self:UnregisterEvent("PLAYER_TARGET_CHANGED");
+        self:UnregisterEvent("UNIT_AURA");
+        self:UnregisterEvent("PLAYER_REGEN_ENABLED");
         self:UnregisterEvent("PLAYER_EQUIPMENT_CHANGED");
         self:UnregisterEvent("INSPECT_READY");
     end
@@ -89,29 +89,46 @@ function GuildGearRulesInspector:SetActive(active)
     self.IsActive = active;
 end
 
-function GuildGearRulesInspector:ForgetCheater(id)
-    if (id == nil or self.Cheaters[id] == nil) then
+function GuildGearRulesInspector:ForgetCheater(cheater)
+    if (cheater == nil) then
         return;
     end
 
-    table.remove(self.Cheaters, id);
-    -- Update currently viewed cheater in UI.
-    self.Core.UI.ViewedCheater = nil;
-    if (#self.Cheaters > 0) then
-        for key, cheater in pairs(self.Cheaters) do
-            if (#cheater.Items > self.Core.Rules.ExceptionsAllowed) then
-                self.Core.UI.ViewedCheater = cheater.GUID;
-                break;
-            end
+    for index, value in pairs(self.Cheaters) do
+        if (value.GUID == cheater.GUID) then
+            table.remove(self.Cheaters, index);
+            break;
         end
     end
+
+    -- Update currently viewed cheater in UI.
+    self.Core.UI:UpdateCharacterView();
 end
 
 function GuildGearRulesInspector:Update()
     if (not self.IsActive) then return; end
-
     self:HookInspectFrame();
 
+    -- Only send data about one cheater per cooldown, to prevent data spam.
+    if (time() - self.LastDataTransmission >= self.DataTransmissionCooldown) then
+        local latestSendTime = 10000000000000;
+        local cheaterToTransmit = nil;
+
+        -- Pick the cheater whose data sent the longest time ago.
+        for index, cheater in pairs(self.Cheaters) do
+            local lastSend = cheater:GetLastSendTime();
+            if (lastSend ~= nil and lastSend < latestSendTime) then
+                cheaterToTransmit = cheater;
+                latestSendTime = lastSend;
+            end
+        end
+
+        if (cheaterToTransmit ~= nil and cheaterToTransmit:SendData()) then
+            self.LastDataTransmission = time();
+        end
+    end
+
+    -- Default inspection.
     if (self.InspectedUnitID) then
         -- Forget about request if unit is too far away.
         if (not CheckInteractDistance(self.InspectedUnitID, 3) or not CanInspect(self.InspectedUnitID, false)) then
@@ -123,7 +140,7 @@ function GuildGearRulesInspector:Update()
             return;
         end
     end
-    
+
     local latestInspectTime = 10000000000000;
     local unitIDToScan = nil;
 
@@ -155,86 +172,81 @@ function GuildGearRulesInspector:Update()
     end
 end
 
-function GuildGearRulesInspector:Alert(name, unitID, itemLink)
+function GuildGearRulesInspector:Alert(name, classID, bannedThing, sender)
     self.Core:PlaySound(true, self.Core.db.profile.alertSoundID)
-    print(self.Core.Constants.AddOnMessagePrefix .. "[" .. self.Core.UI:ClassColoredName(name, unitID) .. "] " .. _cstr(L["ALERT_MESSAGE_SELF"], itemLink, "|cffffff00/" .. L["CONFIG_COMMAND"] .. " gui|r"))
+    self.Core:Message(self.Core.UI:ClassIDColored(name, classID) .. " " .. _cstr(L["ALERT_MESSAGE_SELF"], bannedThing, self.Core.ViewCheatersCommand), sender);
 end
 
-function GuildGearRulesInspector:GetCharacterInfo(unitID)
-    local guid = UnitGUID(unitID);
-    if (guid == nil) then return nil; end
-
-    local _, _, classID = UnitClass(unitID);
-
-    local characterInfo =
-    {
-        Name = UnitName(unitID),
-        Level = UnitLevel(unitID),
-        ClassID = classID,
-        Race = UnitRace(unitID),
-        UnitID = unitID,
-        GUID = guid
-	};
-
-    return characterInfo;
+function GuildGearRulesInspector:AlertStopped(name, classID, sender)
+    self.Core:PlaySound(true, self.Core.db.profile.alertSoundID)
+    self.Core:Message(L["ALERT_MESSAGE_STOPPED"], sender);
 end
 
 function GuildGearRulesInspector:ScanPlayer()
-    -- Do no scanning if not in guild or no rules found.
-    if (not IsInGuild() or self.Core.Rules.MaxItemQuality == nil) then
-        return false;
+    self.Core:Log("Scanning player.");
+
+    local cheater = self:GetCheater(self.Core.Player.GUID);
+    local wasCheatingBeforeScan = (cheater ~= nil and cheater:CheatingDataCount() > 0);
+
+    if (self:RulesApply(self.Core.Player.UnitID)) then
+        self:ScanUnit(self.Core.Player);
     end
 
-    self.Core:Log("Scanning player items.");
-
-    local characterInfo = self:GetCharacterInfo("player");
-    
-    self.WasCheatingBeforeScan = self.IsCheating;
-    self.IsCheating = false;
-
-    -- Go through each equipment slot.
-    for i = 1, #self.InventorySlots do
-        self:ValidateItem(characterInfo, self.InventorySlots[i]);
-    end
-
+    cheater = self:GetCheater(self.Core.Player.GUID);
     -- Stopped cheating.
-    if (self.WasCheatingBeforeScan and not self.IsCheating) then
-        SendChatMessage(self.Core.Constants.MessagePrefix .. L["ALERT_MESSAGE_GUILD_CHAT_ENDED"], "GUILD");
+    if (wasCheatingBeforeScan and (cheater == nil or cheater:CheatingDataCount() == 0)) then
+        SendChatMessage(self.Core.Constants.MessagePrefix .. _cstr(L["ALERT_MESSAGE_GUILD_CHAT_ENDED"], "/ggr cheaters"), self.Core.AnnounceChannel);
     end
 end
 
---[[function GuildGearRulesInspector:InspectMembers()
-    local partyType, count = self:PartyInformation()
-    -- Cancel if group has no members, since it might still be under formation. (No accepted invitiations)
-    if count == 0 then return end
-
-    -- Reset index or increment index. Index might be beyond count if party has changed.
-    if self.InspectIndex >= count then
-        self.InspectIndex = 0
-    else
-        self.InspectIndex = self.InspectIndex + 1
+function GuildGearRulesInspector:ScanUnit(characterInfo)
+    -- Go through each equipment slot.
+    local filledSlots = 0;
+    for i = 1, #self.InventorySlots do
+        if (self:ValidateItem(characterInfo, self.InventorySlots[i])) then
+            filledSlots = filledSlots + 1;
+        end
     end
 
-    -- Loop through players from current index, if a inspectable unit is found, inspect it and break
-    for i = self.InspectIndex, count do
-        local unit = partyType .. i
-        if self:AttemptScan(unit) then
-            self.InspectIndex = i
-            break
+    local cheater = self:GetCheater(characterInfo.GUID);
+    if (cheater ~= nil) then
+        cheater:GetData(self.Core.Player):ClearBuffs();
+    end
+
+    -- Validate buffs.
+    for i = 1, #self.Core.Rules.BannedBuffGroups do
+        local buffGroup = self.Core.Rules.BannedBuffGroups[i];
+        if (buffGroup.MinimumLevel == nil or buffGroup.MinimumLevel <= characterInfo.Level) then
+            self:ValidateBuffs(characterInfo, buffGroup.IDs);
+        end
+    end
+
+    local cheater = self:GetCheater(characterInfo.GUID);
+    if (cheater ~= nil) then
+        cheater:GetData(self.Core.Player):BuffsUpdated();
+    end
+
+    return filledSlots;
+end
+
+function GuildGearRulesInspector:ValidateBuffs(characterInfo, ggrTable)
+    for i = 1, 40 do
+        local name, icon, count, debuffType, duration, expirationTime, source, isStealable, nameplateShowPersonal, spellID = UnitAura(characterInfo.UnitID, i, "CANCELABLE");
+        if (spellID ~= nil and ggrTable:Contains(spellID)) then
+            local registerBuff = true;
+            -- If player self, remove buff automatically if enabled.
+            -- Buff will not be registered, in case unit is in combat and buff cannot be removed a new scan is ran when combat ends.
+            if (characterInfo.UnitID == "player" and self.Core.db.profile.removeBannedBuffs) then
+                CancelUnitBuff(characterInfo.UnitID, i, "CANCELABLE");
+                registerBuff = false;
+            end
+
+            if (registerBuff) then
+                self:RegisterBuffCheat(characterInfo, spellID);
+            end
         end
     end
 end
-
-function GuildGearRulesInspector:IsInspecting(name)
-    if self:IsInspectWindowOpen() then
-        local currentInspectUnitName = InspectNameText:GetText()
-        if currentInspectUnitName == name then
-            self.Core:Log("Current inspecting " .. currentInspectUnitName .. ", won't request data.", DEBUG_MSG_TYPE.WARNING)
-            return true
-        end
-    end
-    return false
-end]]--
 
 function GuildGearRulesInspector:IsInspectWindowOpen()
     local inspectFrame = InspectPaperDollItemsFrame;
@@ -256,6 +268,10 @@ function GuildGearRulesInspector:AttemptScan(unitID)
     return true;
 end
 
+function GuildGearRulesInspector:RulesApply(unitID)
+    return UnitLevel(unitID) >= self.Core.Rules.Apply.Level;
+end
+
 function GuildGearRulesInspector:ShouldScan(unitID)
     -- Dont scan if running default inspection.
     if (self.InspectedUnitID) then return; end
@@ -263,24 +279,16 @@ function GuildGearRulesInspector:ShouldScan(unitID)
     local guid = UnitGUID(unitID);
     if (guid == nil) then return nil, nil; end
 
-    -- Ignore non-players other than user.
-    if (not UnitIsPlayer(unitID) or UnitIsUnit(unitID, "player")) then
-        return nil, nil;
-    end
+    if (not self:RulesApply(unitID)) then return nil, nil; end
 
+    -- Ignore non-players and user.
+    if (not UnitIsPlayer(unitID) or UnitIsUnit(unitID, "player")) then return nil, nil; end
     -- Dont issue any new requests if the inspect window is open to prevent it from bugging out (removing old data when new arrives)
     if (self:IsInspectWindowOpen()) then return nil, nil; end
-
-    -- Check if unit is same faction first to prevent error from CanInspect on other faction.
-    if (UnitFactionGroup(unitID) ~= UnitFactionGroup("player")) then
-        return nil, nil;
-    end
-
+    --Make sure unit is same faction first to prevent error from CanInspect on other faction.
+    if (UnitFactionGroup(unitID) ~= UnitFactionGroup("player")) then return nil, nil; end
     -- 3 is the distIndex for Duel and Inspect (7 yards).
-    if (not CheckInteractDistance(unitID, 3) or not CanInspect(unitID, false)) then
-        -- Cannot inspect this unit.
-        return nil, nil;
-    end
+    if (not CheckInteractDistance(unitID, 3) or not CanInspect(unitID, false)) then return nil, nil; end
 
     local name, realm = UnitName(unitID);
     -- Ignore players not in the same guild.
@@ -342,18 +350,17 @@ function GuildGearRulesInspector:OnInspectReady(event, inspecteeGUID)
         return;
     end
 
-    -- Update inspected time, ensuring we don't ask for a new inspect while still receiving information.
+    -- Make sure the rules apply to this unit before we scan and potentially flag it as a cheater.
+    if (not self:RulesApply(unitID)) then
+        return;
+    end
+
     self.SuccessfulInspectGUIDTimes[inspecteeGUID] = time();
 
-    local characterInfo = self:GetCharacterInfo(unitID);
+    local characterInfo = self.Core:GetCharacterInfo(unitID);
 
-    local filledSlots = 0;
-    -- Go through each equipment slot.
-    for i = 1, #self.InventorySlots do
-        if (self:ValidateItem(characterInfo, self.InventorySlots[i])) then
-            filledSlots = filledSlots + 1;
-        end
-    end
+    -- Scan unit and get how many slots we scanned.
+    local filledSlots = self:ScanUnit(characterInfo);
 
     -- Clear data (as recommended) if the unit was requested and inspection window is not open.
     local ending = ""
@@ -367,27 +374,25 @@ end
 
 function GuildGearRulesInspector:ValidateItem(characterInfo, slot)
     local itemQuality = GetInventoryItemQuality(characterInfo.UnitID, slot);
-    -- Only check slots that are not empty.
+
+    -- Sometimes itemID is found when item quality is not. This could be checked to see if the slot is empty, but it's not reliable since itemID is also nil sometimes even if the slot is not empty.
+
+    -- Only check slots which we have information about.
     if (itemQuality ~= nil) then
         local itemID, unknown = GetInventoryItemID(characterInfo.UnitID, slot);
         local itemLink = GetInventoryItemLink(characterInfo.UnitID, slot);
+        
+        -- Cancel any pending validation on previous item in same slot.
+        self.Core.Cache:Cancel(characterInfo, slot);
 
-        -- If registered and had another item on this slot previously, remove it.
-        local cheaterID = self:GetCheaterID(characterInfo.GUID);
-        if (cheaterID ~= nil) then
-            local sameSlotItemID = self:GetCheaterSlotItem(cheaterID, slot);
-            if (sameSlotItemID ~= nil) then
-                -- Removed item previously on the same slot.
-                table.remove(self.Cheaters[cheaterID].Items, sameSlotItemID);
-            end
-        end
-
+        local removeItem = true;
         -- If item is not one of the exceptions.
-        if (not has_value(self.Core.Rules.ItemsAllowedIDs, itemID)) then
+        if (not self.Core.Rules.Items.AllowedIDs:Contains(itemID)) then
             -- Check quality first.
-            if (itemQuality > self.Core.Rules.MaxItemQuality) then
-                self:RegisterCheat(characterInfo, itemLink, slot);
-            -- Quality okay, check attributes on items that are at least green (ignore grays and whites)
+            if (itemQuality > self.Core.Rules.Items.MaxQuality) then
+                self:RegisterItemCheat(characterInfo, itemID, itemLink, slot);
+                removeItem = false;
+            -- Quality okay, check attributes on items that are at least green (ignore grays and whites for performance)
             elseif (itemQuality >= 2) then
                 local cacheItem = self.Core.Cache:New(itemID, true);
                 cacheItem.Meta = {
@@ -396,6 +401,15 @@ function GuildGearRulesInspector:ValidateItem(characterInfo, slot)
                     SlotID = slot,
 		        };
                 self.Core.Cache:Load(itemID, cacheItem);
+                removeItem = false;
+            end
+        end
+
+        -- Remove item currently on slot if not currently being checked for attributes (or replaced removed by new item).
+        if (removeItem) then
+            local cheater = self:GetCheater(characterInfo.GUID);
+            if (cheater ~= nil) then
+                cheater:GetData(self.Core.Player):ClearItemSlot(slot);
             end
         end
         return true;
@@ -403,12 +417,15 @@ function GuildGearRulesInspector:ValidateItem(characterInfo, slot)
     return false;
 end
 
-function GuildGearRulesInspector:HasIllegalAttributes(itemID, itemLink, slot, characterInfo)
+function GuildGearRulesInspector:ValidateItemAttributes(itemID, itemLink, slot, characterInfo)
     itemName = C_Item.GetItemNameByID(itemID);
     if (itemName == nil) then
-        self.Core.Log(itemID .. " could not get item name.", DEBUG_MSG_TYPE.ERROR);
+        self.Core:Log(itemID .. " could not get item name.", DEBUG_MSG_TYPE.ERROR);
         return; 
     end
+
+    local bannedAttributesFound = false;
+
     self.ScannerTooltip:ClearLines();
     self.ScannerTooltip:SetHyperlink("item:" .. itemID);
     for i = 1, self.ScannerTooltip:NumLines() do 
@@ -417,115 +434,70 @@ function GuildGearRulesInspector:HasIllegalAttributes(itemID, itemLink, slot, ch
             local text=line:GetText();
 
             if (text == RETRIEVING_ITEM_INFO) then
-                self.Core.Log(itemLink .. " still retreiving information.", DEBUG_MSG_TYPE.ERROR);
+                self.Core:Log(itemLink .. " still retreiving information.", DEBUG_MSG_TYPE.ERROR);
                 break;
             end
 
-            for i=1, #self.Core.Rules.Tags do
-                local tag = self.Core.Rules.Tags[i];
-                if (tag.Type == "ItemAttribute" and tag.Enabled and string.find(text, tag.Pattern)) then               
-                    self:RegisterCheat(characterInfo, itemLink, slot);
+            for i=1, #self.Core.Rules.Items.BannedAttributes do
+                local attribute = self.Core.Rules.Items.BannedAttributes[i];
+                if (text:gsub('%d', '') == attribute.Pattern) then
+                    self:RegisterItemCheat(characterInfo, itemID, itemLink, slot);
+                    bannedAttributesFound = true;
                     break;
                 end
             end
         end
     end
-    return false
+
+    -- This item is okay, remove item previously on slot.
+    if (not bannedAttributesFound) then
+        local cheater = self:GetCheater(characterInfo.GUID);
+        if (cheater ~= nil) then
+            cheater:GetData(self.Core.Player):ClearItemSlot(slot);
+        end
+    end
+
+    return false;
 end
 
-function GuildGearRulesInspector:GetCheaterID(GUID)
+function GuildGearRulesInspector:GetCheater(GUID)
+    capturerGUID = capturer or self.Core.Player.GUID;
     for i = 1, #self.Cheaters do
         if (self.Cheaters[i].GUID == GUID) then
-            return i;
+            return self.Cheaters[i];
         end
     end
     return nil;
 end
 
-function GuildGearRulesInspector:GetCheaterItemID(cheaterID, itemLink)
-    for i = 1, #self.Cheaters[cheaterID].Items do
-        if self.Cheaters[cheaterID].Items[i].Link == itemLink then
-            return i
-        end
-    end
-    return nil
-end
-
-function GuildGearRulesInspector:GetCheaterSlotItem(cheaterID, slot)
-    for i = 1, #self.Cheaters[cheaterID].Items do
-        if self.Cheaters[cheaterID].Items[i].SlotID == slot then
-            return i
-        end
-    end
-    return nil
-end
-
-function GuildGearRulesInspector:RegisterCheat(characterInfo, itemLink, slot)
+function GuildGearRulesInspector:RegisterCheater(characterInfo)
     if (not characterInfo) then
         self.Core:Log("Nil character info provided.", DEBUG_MSG_TYPE.ERROR);
-        return;
+        return nil;
     end
 
-    if (not UnitExists(characterInfo.UnitID)) then
-        self.Core:Log("Unit " .. characterInfo.UnitID .. " does not exist.", DEBUG_MSG_TYPE.ERROR);
-        return;
-    end
-    
-    local cheaterID = self:GetCheaterID(characterInfo.GUID);
-    local cheater = nil;
-    if (cheaterID ~= nil) then
-        cheater = self.Cheaters[cheaterID];
-    end
-
+    local cheater = self:GetCheater(characterInfo.GUID);
     if (cheater == nil) then
-        -- Register.
-        local newCheater = {
-            GUID = characterInfo.GUID,
-            Name = characterInfo.Name,
-            Level = characterInfo.Level,
-            Race = characterInfo.Race,
-            ClassID = characterInfo.ClassID,
-            HasAlerted = false,
-            Items = { }
-		};
-        table.insert(self.Cheaters, newCheater);
-        cheaterID = #self.Cheaters;
-        cheater = self.Cheaters[cheaterID];
+        cheater = GuildGearRulesCharacter:New(characterInfo)
+        table.insert(self.Cheaters, cheater);
     else
         cheater.Level = characterInfo.Level;
     end
 
-    local sameSlotItemID = self:GetCheaterSlotItem(cheaterID, slot);
-    if (sameSlotItemID ~= nil) then
-        -- Remove item previously on the same slot.
-        table.remove(cheater.Items, sameSlotItemID);
+    return cheater;
+end
+
+function GuildGearRulesInspector:RegisterItemCheat(characterInfo, itemID, itemLink, slot)
+    local character = self:RegisterCheater(characterInfo);
+    if (character ~= nil) then
+        character:GetData(self.Core.Player):NewItem(itemID, itemLink, slot, true);
     end
+end
 
-    local item = {
-        Link = itemLink,
-        SlotID = slot,
-        Time = date("%H:%M:%S")
-	};
-    table.insert(cheater.Items, item);
-
-    local itemsEquipped = #cheater.Items;
-    if (itemsEquipped > self.Core.Rules.ExceptionsAllowed) then
-        -- Alert the first time seen cheating.
-        if (not cheater.HasAlerted) then
-            self:Alert(characterInfo.Name, characterInfo.UnitID, itemLink);
-            cheater.HasAlerted = true;
-
-            if (UnitGUID("player") == characterInfo.GUID) then
-                SendChatMessage(self.Core.Constants.MessagePrefix .. _cstr(L["ALERT_MESSAGE_GUILD_CHAT_START"], itemLink), "GUILD");
-            end
-        end
-
-        if (UnitGUID("player") == characterInfo.GUID) then
-            self.IsCheating = true;
-        end
-    else
-        -- Not breaking rules, reset alert to fire again.
-        cheater.HasAlerted = false;
+function GuildGearRulesInspector:RegisterBuffCheat(characterInfo, spellID)
+    local character = self:RegisterCheater(characterInfo);
+    if (character ~= nil) then
+        character:GetData(self.Core.Player):NewBuff(spellID);
     end
 end
 

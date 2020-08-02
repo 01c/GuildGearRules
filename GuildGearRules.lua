@@ -1,7 +1,6 @@
-GuildGearRules = LibStub("AceAddon-3.0"):NewAddon("GuildGearRules", "AceConsole-3.0", "AceEvent-3.0", "AceTimer-3.0", "AceComm-3.0");
+GuildGearRules = LibStub("AceAddon-3.0"):NewAddon("GuildGearRules", "AceConsole-3.0", "AceEvent-3.0", "AceTimer-3.0");
 local L = LibStub("AceLocale-3.0"):GetLocale("GuildGearRules");
 local _cstr = string.format;
-
 
 local DEBUG_MSG_TYPE = {
     ERROR = 1,
@@ -11,11 +10,17 @@ local DEBUG_MSG_TYPE = {
 
 local defaults = {
     profile = {
+        HideWarning = false,
         DebuggingLevel = 0,
         DebugCache = false,
+        DebugNetwork = false,
+        DebugData = false,
 
+        removeBannedBuffs = true,
+        receiveData = true,
         alertSoundID = 8959,
 
+        inspectNotify = true,
         inspectGuildOnly = true,
         inspectCooldown = 5,
 
@@ -26,21 +31,99 @@ local defaults = {
         gratulateSoundID = 124,
         gratulateParty = true,
         gratulateGuild = true,
+
+        ignoredReporters = "",
     },
 };
 
-local COMMS = {
-    SCAN_GGR = "01",
-    SCAN_GGR_REPLY = "02",
-    SCAN_ADDONS = "03",
-    SCAN_ADDONS_REPLY = "04",
+local ITEM_FAMILIES = {
+    {
+        Tag = "TOY",
+        IDs = {
+            13379, -- Piccolo of the Flaming Fire
+            1973, -- Orb of Deception
+            19979, -- Hook of the Master Angler
+		},
+	},
 };
 
+local BUFF_FAMILIES = {
+     {
+        Tag = "WB",
+        IDs = {
+            -- Onyxia and Nefarian.
+            16609, -- Warchief's Blessing
+            22888, -- Rallying Cry of the Dragonslayer
+            -- Hakkar.
+            24425, -- Spirit of Zandalar
+            -- Felwood.
+            15366; -- Songflower Serenade
+            -- Darkmoon Faire.
+            23768, -- Sayge's Dark Fortune of Damage
+            23769, -- Sayge's Dark Fortune of Resistance
+            23767, -- Sayge's Dark Fortune of Armor
+            23766, -- Sayge's Dark Fortune of Intelligence
+            23738, -- Sayge's Dark Fortune of Spirit
+            23737, -- Sayge's Dark Fortune of Stamina
+            23735, -- Sayge's Dark Fortune of Strength
+            23736, -- Sayge's Dark Fortune of Agility
+            -- Dire Maul.
+            22818, -- Mol'dar's Moxie
+            22817, -- Fengus' Ferocity
+            22820, -- Slip'kik's Savvy
+        },
+    },
+    {
+        Tag = "FL",
+        IDs = {
+            17626, -- Flask of the Titans
+            17627, -- Distilled Wisdom
+            17629, -- Chromatic Resistance
+            17624, -- Flask of Petrification
+            17628, -- Flask of Supreme Power
+        },
+    },
+    {
+        Tag = "ZA",
+        IDs = {
+            24382, -- Spirit of Zanza
+            24417, -- Sheen of Zanza
+            24383, -- Swiftness of Zanza
+        },
+    },
+    {
+        Tag = "BL",
+        IDs = {
+            10667, -- Rage of Ages
+            10669, -- Strike of the Scorpok
+            10668, -- Spirit of Boar
+            10692, -- Infallible Mind
+            10693, -- Spiritual Domination
+        },
+    },
+    {
+        Tag = "WS",
+        IDs = {
+            16329, -- Juju Might
+            16323, -- Jugu Power
+            16322, -- Juju Flurry
+            16327, -- Juju Guile
+            16321, -- Juju Escape
+            16325, -- Juju Chill
+            16326, -- Juju Ember
+        },
+    },
+}
+
 function GuildGearRules:OnInitialize()
+    self.db = LibStub("AceDB-3.0"):New("GuildGearRulesDB", defaults, true);
     self.LastLog = "";
     self.LogLines = { };
+    self.DownloadLink = "https://www.curseforge.com/wow/addons/guild-gear-rules";
+    self.ViewCheatersCommand = "|cffffff00/" .. L["CONFIG_COMMAND"] .. " cheaters|r";
+    self.AnnounceChannel = "PARTY";
+
     self.Constants = {
-        CommsPrefix = "GuildGearRules",
         Version = GetAddOnMetadata("GuildGearRules", "version");
         MessagePrefix = "[GGR] ",
         AddOnMessagePrefix = "|cff3ce13f[" .. L["GGR"] .. "]|r ",
@@ -50,91 +133,207 @@ function GuildGearRules:OnInitialize()
         AlertTestItemID = 19019,
     };
 
+    self.SettingTags = self:GetSettingTags();
+
     self.Locale = GetLocale();
     self.Rules = self:GetDefaultRules();
 
-    self.Cache = self:GetModule("GuildGearRulesCache");
-    self.Cache:Initialize(self);
-    self.Inspector = self:GetModule("GuildGearRulesInspector");
-    self.Inspector:Initialize(self);
-    self.UI = self:GetModule("GuildGearRulesUserInterface");
-    self.UI:Initialize(self);
+    self.Cache = self:GetModule("GuildGearRulesCache"):Initialize(self);
+    self.Inspector = self:GetModule("GuildGearRulesInspector"):Initialize(self);
+    self.UI = self:GetModule("GuildGearRulesUserInterface"):Initialize(self);
+    self.Network = self:GetModule("GuildGearRulesNetwork"):Initialize(self);
+    GuildGearRulesCharacter:SetPointers();
 
     -- Cache the item used for test alert.
     self.Cache:Load(self.Constants.AlertTestItemID);
-
-    self.GuildScanRunning = nil;
-    self.GuildScanReplies = {};
 
     self.LastRetrievedGuildInfo = nil;
     self.GuildSettingsLoaded = false;
     self.RealmLoaded = false;
 
     self.LastInspectRequest = 0;
-    self.ScanGuildResults = "";
+    self.IgnoreOutgoingWhispers = 0;
 
     local pattern = string.gsub(ERR_GUILD_JOIN_S, "%s", ".*");
     self.JoinGuildMessage = string.match(ERR_GUILD_JOIN_S, pattern);
 
     self.Realm = nil;
     self.Guild = nil;
-    self.CharacterName = nil;
+    self.Player = self:GetCharacterInfo("player");
+    local type, server, uid = strsplit("-", self.Player.GUID);
+    self.GUIDStart = type .. "-" .. server .. "-";
 
-    self.db = LibStub("AceDB-3.0"):New("GuildGearRulesDB", defaults, true);
     self.UpdateTimer = self:ScheduleRepeatingTimer("Update", 1);
     self.MinuteTimer = self:ScheduleRepeatingTimer("EveryMinute", 60);
 
     LibStub("AceConfig-3.0"):RegisterOptionsTable("GuildGearRules", self.UI:GetOptions());
     self.optionsFrame = LibStub("AceConfigDialog-3.0"):AddToBlizOptions("GuildGearRules", L["GUILD_GEAR_RULES"]);
     self.optionsFrame.default = function() self.db:ResetProfile(defaults); self.UI:Refresh(); end;
+    self.UI:Refresh();
 
-    self:RegisterChatCommand("ggr", "ChatCommand");
-    self:RegisterChatCommand("guildgearrules", "ChatCommand");
-
-    self:RegisterComm("GuildGearRules");
-
-    self:Log("Initialized.");
+    self:RegisterChatCommand(L["CONFIG_COMMAND"] , "ChatCommand");
+    self:RegisterChatCommand(L["CONFIG_COMMAND_LONG"], "ChatCommand");
+    ChatFrame_AddMessageEventFilter("CHAT_MSG_WHISPER_INFORM", function (_, event, msg) return self:OutgoingWhisperFilter(event, msg); end)
+    ChatFrame_AddMessageEventFilter("CHAT_MSG_WHISPER", function (_, event, msg, author) return self:IncomingWhisperFilter(event, msg, author); end)
+    self:Log(tostring(self) .. " initialized.");
 
     self:LoadGuildSettings();
     self:LoadRealm();
+
+    if (not self.db.profile.HideWarning) then
+        self:Warning();
+    end
+end
+
+function GuildGearRules:Warning()
+    local AceGUI = LibStub("AceGUI-3.0");
+    -- Create a container frame
+    local f = AceGUI:Create("Frame");
+    f:SetWidth(400);
+    f:SetHeight(200);
+    f.frame:SetMaxResize(400, 200);
+    f:SetCallback("OnClose",function(widget) AceGUI:Release(widget) end);
+    f:SetTitle(L["GUILD_GEAR_RULES"] .. " " .. L["WARNING"]);
+    f:SetLayout("Flow");
+
+    local desc = AceGUI:Create("Label");
+    desc:SetText(_cstr(L["WARNING_DESC"], L["GUILD_GEAR_RULES"]));
+    desc:SetFullWidth(true);
+
+    local openOptions = AceGUI:Create("Button");
+    openOptions:SetText(L["OPEN_SETTINGS"]);
+    openOptions:SetWidth(200);
+    openOptions:SetCallback("OnClick", function() print(self.UI:Show()) end)
+
+    local checkBox = AceGUI:Create("CheckBox");
+    checkBox:SetCallback("OnValueChanged", function(widget, callback, val) self.db.profile.HideWarning = val; end);
+    checkBox:SetLabel(L["DONT_SHOW_AGAIN"]);
+    checkBox:SetFullWidth(true);
+
+    f:AddChild(desc);
+    f:AddChild(openOptions);
+    f:AddChild(checkBox);
+end
+
+function GuildGearRules:OnEnable()
+    self:Log(tostring(self) .. " enabled.")
+    self:RegisterEvent("PLAYER_GUILD_UPDATE", "OnGuildUpdate")
+    self:RegisterEvent("CHAT_MSG_WHISPER", "OnWhisper")
+    self:RegisterEvent("CHAT_MSG_SYSTEM", "OnSystemMessage");
+    self:RegisterEvent("CHAT_MSG_GUILD", "OnMessage", "GUILD");
+    self:RegisterEvent("CHAT_MSG_PARTY", "OnMessage", "PARTY");
+    self:RegisterEvent("PLAYER_LEVEL_UP", "OnLevelUp"); -- Since some rules are level-based (buffs).
+    SendSystemMessage(_cstr(L["ADDON_LOADED"], self.Constants.Version, "/" .. L["CONFIG_COMMAND"]));
+end
+
+function GuildGearRules:EveryMinute()
+    self.Network:EveryMinute();
+
+    -- Check for new guild information.
+    local guildInfo = GetGuildInfoText();
+    if (guildInfo == nil or guildInfo:len() == 0 or guildInfo == self.LastRetrievedGuildInfo) then return; end
+    self:LoadGuildSettings();
+end
+
+function GuildGearRules:Update()
+    if (not self.RealmLoaded) then self:LoadRealm(); end
+    if (not self.GuildSettingsLoaded) then self:LoadGuildSettings(); end
+
+    if (not self.RealmLoaded or not self.GuildSettingsLoaded or self.Rules.Items.MaxQuality == nil or not IsInGuild()) then
+        self.Inspector:SetActive(false);
+        return;
+    end
+
+    self.Inspector:SetActive(self:RuledZone());
+
+    if (self.Cache ~= nil) then self.Cache:Update(); end
+    if (self.Inspector ~= nil) then self.Inspector:Update(); end
+end
+
+function GuildGearRules:Message(text, sender)
+    local start = self.Constants.AddOnMessagePrefix;
+    if (sender ~= nil and sender ~= self.Player) then
+        start = _cstr(L["MESSAGE_RECEIVED"], self.UI:ClassIDColored(sender.Name, sender.ClassID));
+    end
+
+    print(start .. text);
 end
 
 function GuildGearRules:GetDefaultRules()
     local defaultRules = {
-        MaxItemQuality = nil,
-        Tags = {
-            {
-                Tag = "SP",
-                Type = "ItemAttribute",
-                Text = L["RULES_TAG_SP"],
-                Enabled = false,
-                Pattern = L["ATTRIBUTE_SPELLPOWER"],
-			},
-            {
-                Tag = "PVP",
-                Type = "Zone",
-                Text = L["RULES_TAG_PVP"],
-                Enabled = false,
-			},
-            {
-                Tag = "PVE",
-                Type = "Zone",
-                Text = L["RULES_TAG_PVE"],
-                Enabled = false,
-			},
-        },
-        ExceptionsAllowed = 0,
-        ItemsAllowedIDs = { },
+        Apply = {
+            Level = 0,
+            World = true,
+            Dungeons = true,
+            Raids = true,
+            Battlegrounds = true,
+		},
+        Items = {
+            MaxQuality = nil,
+            ExceptionsAllowed = 0,
+            BannedAttributes = GuildGearRulesTable:New{ },
+            AllowedIDs = GuildGearRulesTable:New{ },
+		},
+        BannedBuffGroups = GuildGearRulesTable:New{ },
     };
     return defaultRules;
 end
 
-function GuildGearRules:IsTagEnabled(tag)
-    for i = 1, #self.Rules.Tags do
-        if (self.Rules.Tags[i].Tag == tag) then
-           return self.Rules.Tags[i].Enabled;
-        end
-    end
+function GuildGearRules:GetSettingTags()
+    local tags = {
+        {
+            Identifier = "SP",
+            Found = function() self.Rules.Items.BannedAttributes:Add({ Name =  L["RULES_TAG_SP"], Pattern = L["ATTRIBUTE_SPELLPOWER"] } ); end,
+	    },
+        {
+            Identifier = "AP",
+            Found = function() self.Rules.Items.BannedAttributes:Add({ Name =  L["RULES_TAG_AP"], Pattern = L["ATTRIBUTE_ATTACKPOWER"] } ); end,
+	    },
+        {
+            Identifier = "A1",
+            Found = function() self.Rules.Apply.World = false; end,
+	    },
+        {
+            Identifier = "A2",
+            Found = function() self.Rules.Apply.Dungeons = false; end,
+	    },
+        {
+            Identifier = "A3",
+            Found = function() self.Rules.Apply.Raids = false; end,
+	    },
+        {
+            Identifier = "A4",
+            Found = function() self.Rules.Apply.Battlegrounds = false; end,
+	    },
+        {
+            Identifier = "L%(([%d]+)%)",
+            Found = function(args) self.Rules.Apply.Level = tonumber(args); end,
+		},
+        {
+            Identifier = "BUFFS%(([%w%.]+)%)",
+            Type = "List",
+            Found = 
+            function(args)
+                if (args ~= nil) then
+                    local buffGroup = {
+                        MinimumLevel = nil, 
+                        IDs = GuildGearRulesTable:New{ },
+				    };
+                    self.Rules.BannedBuffGroups:Add(buffGroup);
+
+                    for subArg in args:gmatch('[^%.%s]+') do
+                        local level = subArg:match("^L(%d+)$");
+                        if (level ~= nil) then
+                            buffGroup.MinimumLevel = tonumber(level);
+                        else
+                            self:HandleIDArgument(subArg, buffGroup.IDs, BUFF_FAMILIES, "spell");
+                        end
+                    end
+                end
+            end,
+	    },
+    };
+    return tags;
 end
 
 function GuildGearRules:ChatCommand(input)
@@ -143,6 +342,7 @@ function GuildGearRules:ChatCommand(input)
 end
 
 function GuildGearRules:LoadGuildSettings()
+    self.Inspector:SetActive(false);
     self.GuildSettingsLoaded = false;
     self:Log("Attempting to load guild settings.");
     -- Make sure rules are defaulted first.
@@ -163,30 +363,36 @@ function GuildGearRules:LoadGuildSettings()
 
         self.LastRetrievedGuildInfo = guildInfo;
 
-        local arguments = string.match(guildInfo, "GGR%[(.-)%]");
+        -- Capture all alphanumeric {%w} and comma {,} characters within the square brackets.
+        -- Do not allow spaces to prevent guilds accidentally wasting characters in their guild information.
+        local arguments = string.match(guildInfo, "GGR%[([%w,]+)%]");
         -- Loop through default arguments.
         if (arguments ~= nil) then
             local argIndex = 0;
-            for arg in arguments:gmatch('[^,%s]+') do
+            for arg in arguments:gmatch('[^,]+') do
                 if (argIndex == 0) then
-                    self.Rules.MaxItemQuality = tonumber(arg);
+                    self.Rules.Items.MaxQuality = tonumber(arg);
                 elseif (argIndex == 1) then
-                    self.Rules.ExceptionsAllowed = tonumber(arg);
+                    self.Rules.Items.ExceptionsAllowed = tonumber(arg);
                 else
-                    table.insert(self.Rules.ItemsAllowedIDs, tonumber(arg));
+                    self:HandleIDArgument(arg, self.Rules.Items.AllowedIDs, ITEM_FAMILIES, "item");
                 end
                 argIndex = argIndex + 1;
             end
         end
 
-        arguments = string.match(guildInfo, "GGRTags%[(.-)%]");
+        -- Capture all alphanumeric {%w} and comma {,} and dot {%.} and parentheses {%(%)} characters within the square brackets.
+        arguments = string.match(guildInfo, "GGRTags%[([%w,%.%(%)]+)%]");
         -- Loop through tag arguments.
         if (arguments ~= nil) then
-            for arg in arguments:gmatch('[^,%s]+') do
-                for i=1, #self.Rules.Tags do
-                    local tag = self.Rules.Tags[i];
-                    if (tag.Tag == arg) then
-                        tag.Enabled = true;
+            for arg in arguments:gmatch('[^,]+') do
+                -- Check argument against all tags.
+                for i=1, #self.SettingTags do
+                    local tag = self.SettingTags[i];
+                    local args = string.match(arg, tag.Identifier);
+                    if (args) then
+                        tag.Found(args);
+                        break;
                     end
                 end
             end
@@ -195,7 +401,7 @@ function GuildGearRules:LoadGuildSettings()
         self:Log("Loaded settings for " .. self.Guild .. ".");
 
         -- Cache all required items.
-        for key, value in ipairs(self.Rules.ItemsAllowedIDs) do
+        for key, value in ipairs(self.Rules.Items.AllowedIDs) do
             self.Cache:Load(value);
         end
     end
@@ -203,18 +409,68 @@ function GuildGearRules:LoadGuildSettings()
     self.GuildSettingsLoaded = true;
 end
 
-function GuildGearRules:OnEnable()
-    self:Log("Enabling.")
-    self:RegisterEvent("PLAYER_GUILD_UPDATE", "OnGuildUpdate")
-    self:RegisterEvent("CHAT_MSG_WHISPER", "OnWhisper")
-    self:RegisterEvent("CHAT_MSG_SYSTEM", "OnSystemMessage");
-    self:RegisterEvent("CHAT_MSG_GUILD", "OnMessage", "GUILD");
-    self:RegisterEvent("CHAT_MSG_PARTY", "OnMessage", "PARTY");
-    SendSystemMessage(_cstr(L["ADDON_LOADED"], self.Constants.Version, "/" .. L["CONFIG_COMMAND"]));
+function GuildGearRules:HandleIDArgument(arg, list, idList, type)
+    local numberArg = tonumber(arg);
+    if (numberArg ~= nil) then
+        if (self:DoesTypeExist(arg, type)) then
+            list:Add(arg);
+        end
+    else
+        -- Is string, check if it matches one of the ID families.
+        for i = 1, #idList do
+            if (idList[i].Tag == arg) then
+                for j = 1, #idList[i].IDs do
+                    if (self:DoesTypeExist(idList[i].IDs[j], type)) then
+                        list:Add(idList[i].IDs[j]);
+                    end
+                end
+                return;
+            end
+        end
+        self:Log("Arguments: Unknown tag \"" .. arg .. "\".", DEBUG_MSG_TYPE.WARNING)
+    end
+end
+
+function GuildGearRules:DoesTypeExist(id, type)
+    if (type == nil) then self:Log("Arguments: No type given.", DEBUG_MSG_TYPE.ERROR); return; end
+    if (type == "item") then
+        local exists = C_Item.DoesItemExistByID(id);
+        if (not exists) then self:Log("Arguments: Item with ID " .. id .. " could not be found.", DEBUG_MSG_TYPE.WARNING); end
+        return exists;
+    elseif (type == "spell") then
+        local exists = C_Spell.DoesSpellExist(id);
+        if (not exists) then self:Log("Arguments: Spell with ID " .. id .. " could not be found.", DEBUG_MSG_TYPE.WARNING); end
+        return exists;
+    end
+    self:Log("Arguments: Unknown type \"" .. type .. "\".", DEBUG_MSG_TYPE.WARNING);
+    return false;
+end
+
+function GuildGearRules:GetCharacterInfo(unitID)
+    local guid = UnitGUID(unitID);
+    if (guid == nil) then return nil; end
+
+    local _, _, classID = UnitClass(unitID);
+
+    local type, server, uid = strsplit("-", guid);
+    local characterInfo =
+    {
+        Name = UnitName(unitID),
+        Level = UnitLevel(unitID),
+        ClassID = classID,
+        UnitID = unitID,
+        GUID = guid,
+        UID = uid,
+	};
+    return characterInfo;
+end
+
+function GuildGearRules:StripRealm(name)
+    return string.sub(string.match(name, '^.*\-'), 0, -2)
 end
 
 function GuildGearRules:LoadRealm()
-    self.CharacterName, self.Realm = UnitFullName("player");
+    _, self.Realm = UnitFullName("player");
 
     if (self.Realm ~= nil) then
         self.RealmLoaded = true;
@@ -222,149 +478,6 @@ function GuildGearRules:LoadRealm()
     else
         self:Log("Failed loading realm.");
     end
-end
-
-function GuildGearRules:GetActiveAddOns()
-    local activeAddOns = { };
-    local count = GetNumAddOns();
-    for i = 1, count do
-        name, title, notes, loadable, reason, security, newVersion = GetAddOnInfo(i);
-        if (IsAddOnLoaded(name)) then
-            table.insert(activeAddOns, name);
-        end       
-    end
-    return activeAddOns;
-end
-
-function GuildGearRules:OnCommReceived(prefix, text, distribution, sender)
-    -- Only accept addon calls from guild members.
-    if (prefix ~= self.Constants.CommsPrefix or not self:IsGuildMember(sender)) then
-        return;
-    end
-
-    local identifier = string.sub(text, 0, 2);
-    local contents = string.sub(text, 3);
-
-    if (identifier == COMMS.SCAN_GGR) then
-        self:SendCommMessage(self.Constants.CommsPrefix, COMMS.SCAN_GGR_REPLY .. self.Constants.Version, "WHISPER", sender)
-    elseif (identifier == COMMS.SCAN_ADDONS) then
-        local reply = "0";
-        local activeAddOns = self:GetActiveAddOns();
-        for arg in contents:gmatch('[^,%s]+') do
-            for i = 1, #activeAddOns do
-                if (activeAddOns[i]:lower():find(arg:lower(), 1, true)) then
-                    local start = "";
-                    if (reply == "0") then
-                        reply = ""; 
-                    elseif (reply:len() > 1) then
-                        start = ", ";
-                    end
-                    reply = reply .. start .. activeAddOns[i];
-                    -- Only allow one reply per argument.
-                    break;
-                end
-            end
-        end
-        self:SendCommMessage(self.Constants.CommsPrefix, COMMS.SCAN_ADDONS_REPLY .. reply, "WHISPER", sender)
-    elseif (identifier == COMMS.SCAN_GGR_REPLY and self.GuildScanRunning ~= nil) then
-        self.GuildScanReplies[sender] = contents;
-    elseif (identifier == COMMS.SCAN_ADDONS_REPLY and self.GuildScanRunning ~= nil) then
-        local installed = string.sub(contents, 0, 1);
-        self.GuildScanReplies[sender] = contents;
-    end
-end
-
-function GuildGearRules:VersionNumberSplit(text)
-    local numbers = { };
-    for arg in text:gmatch('[^.%s]+') do
-        table.insert(numbers, tonumber(arg));
-    end
-    return numbers;
-end
-
-function GuildGearRules:OnScanEnd()
-    self.ScanGuildResults = "";
-    count = 0;
-
-    for player, result in pairs(self.GuildScanReplies) do
-        if (self.GuildScanRunning == 0) then
-            if (result == "?") then
-                self.ScanGuildResults = self.ScanGuildResults .. "|cff889d9d" .. player .. " " .. L["SCAN_GGR_MESSAGE_NOT_INSTALLED"] .. "|r\n";
-            else
-                local selfVersionNumber = self:VersionNumberSplit(self.Constants.Version);
-                local versionNumber = self:VersionNumberSplit(result);
-                local color = "|cff1eff0c";
-                for i = 1, #selfVersionNumber do
-                    if (versionNumber[i] == nil or versionNumber[i] < selfVersionNumber[i]) then
-                        lowerVersion = true;
-                        color = "|cffffff00";
-                        break;
-                    end
-                end
-
-                self.ScanGuildResults = self.ScanGuildResults .. color .. player .. " " .. _cstr(L["SCAN_GGR_MESSAGE"], result) .. "|r\n";
-            end
-        elseif (self.GuildScanRunning == 1) then
-            if (result == "?") then
-                self.ScanGuildResults = self.ScanGuildResults .. "|cff889d9d" .. player .. " " .. L["SCAN_ADDONS_MESSAGE_NOT_ALLOWED"] .. "|r\n";
-            elseif (result == "0") then
-                self.ScanGuildResults = self.ScanGuildResults .. "|cffffff00" .. player .. " " .. L["SCAN_ADDONS_MESSAGE_NO_MATCH"] .. "|r\n";
-            else
-                self.ScanGuildResults = self.ScanGuildResults .. "|cff1eff0c" .. player .. " " .. _cstr(L["SCAN_ADDONS_MESSAGE"], result) .. "|r\n";
-            end
-        end
-        count = count + 1;
-	end
-    self.ScanGuildResults = self.ScanGuildResults .. _cstr(L["SCAN_COMPLETED"], count) .. "\n";
-    self.UI:Refresh();
-    self.GuildScanRunning = nil;
-end
-
-function GuildGearRules:ScanGuild(scanType)
-    if (not IsInGuild()) then return false; end
-    if (scanType ~= 0 and scanType ~= 1) then return; end
-    if (scanType == 1 and (self.UI.ScanGuildAddOnsInput == "" or self.UI.ScanGuildAddOnsInput == nil)) then return; end
-
-    self.ScanGuildResults = "";
-    if (self.GuildScanRunning ~= nil) then
-        self.ScanGuildResults = L["SCAN_ALREADY_RUNNING"];
-        return;
-    end
-    self.ScanGuildResults = _cstr(L["SCAN_STARTED"], 5);
-
-    self.GuildScanRunning = scanType;
-    self.ScanUsersTimer = self:ScheduleTimer("OnScanEnd", 5);
-    self.GuildScanReplies = { };
-    self.UI:Refresh()
-    
-    -- Populate table with online members and nil values.
-    local guildMembersCount = GetNumGuildMembers();
-    for i = 1, guildMembersCount do
-        local name, rankName, rankIndex, level, classDisplayName, zone, publicNote, officerNote, isOnline = GetGuildRosterInfo(i);
-        name = self:StripRealm(name);
-        if (isOnline) then
-            self.GuildScanReplies[name] = "?";
-        end
-    end
-
-    if (scanType == 0) then
-        self:SendCommMessage(self.Constants.CommsPrefix, COMMS.SCAN_GGR, "GUILD");
-    elseif (scanType == 1) then
-        self:SendCommMessage(self.Constants.CommsPrefix, COMMS.SCAN_ADDONS .. self.UI.ScanGuildAddOnsInput, "GUILD");
-    end
-end
-
-function GuildGearRules:StripRealm(name)
-    return string.sub(string.match(name, '^.*\-'), 0, -2)
-end
-
-function GuildGearRules:ElementIndex(tab,el)
-    for index, value in pairs(tab) do
-	    if value == el then
-	        return index
-	    end
-	end
-    return nil
 end
 
 function GuildGearRules:Info(text)
@@ -382,21 +495,21 @@ function GuildGearRules:Log(text, msgType)
         return;
     end
 
-    self.LastLog = text
+    self.LastLog = text;
 
-    local color = ""
-    if msgType == DEBUG_MSG_TYPE.WARNING then
-        color = "|cffff8000"
-    elseif msgType == DEBUG_MSG_TYPE.ERROR then
-        color = "|cffff4700"
+    local color = "";
+    if (msgType == DEBUG_MSG_TYPE.WARNING) then
+        color = "|cffff8000";
+    elseif (msgType == DEBUG_MSG_TYPE.ERROR) then
+        color = "|cffff4700";
     end
 
-    local msg = color .. date("%H:%M:%S") .. ": " .. tostring(text) .. "|r"
+    local msg = color .. date("%H:%M:%S") .. ": " .. tostring(text) .. "|r";
 
-    if self.db == nil then print(self.Constants.AddOnMessagePrefix .. "Error: Profile not initialized. Tried to log: " .. text) return end
+    if (self.db == nil) then print(self.Constants.AddOnMessagePrefix .. "Error: Profile not initialized. Tried to log: " .. text); return; end
     if (self.db.profile.DebuggingLevel >= msgType) then
         table.insert(self.LogLines, { Text = msg, Times = 1 } );
-        self.UI:Refresh();
+        if (self.UI ~= nil) then self.UI:Refresh(); end
     end
 end
 
@@ -405,44 +518,15 @@ function GuildGearRules:ClearLogs()
     self.LogLines = { }
 end
 
-function GuildGearRules:EveryMinute()
-    -- Check for new guild information.
-    local guildInfo = GetGuildInfoText();
-    if (guildInfo == nil or guildInfo:len() == 0 or guildInfo == self.LastRetrievedGuildInfo) then return; end
-    self:LoadGuildSettings();
+function GuildGearRules:RuledZone()
+    local inInstance, instanceType = IsInInstance();
+    if (not self.Rules.Apply.Raids and instanceType == "raid") then return false; end
+    if (not self.Rules.Apply.Dungeons and instanceType == "party") then return false; end
+    if (not self.Rules.Apply.Battlegrounds and C_PvP.IsPVPMap()) then return false; end
+    return self.Rules.Apply.World;
 end
 
-function GuildGearRules:Update()
-    if (not self.RealmLoaded) then self:LoadRealm(); end
-    if (not self.GuildSettingsLoaded) then self:LoadGuildSettings(); end
-
-    if (not self.RealmLoaded or not self.GuildSettingsLoaded or self.Rules.MaxItemQuality == nil or not IsInGuild()) then
-        self.Inspector:SetActive(false);
-        return;
-    else
-        self.Inspector:SetActive(true);
-    end
-
-    if (self:IsTagEnabled("PVE")) then -- PVE Only.
-        local inInstance, instanceType = IsInInstance();
-        if (instanceType == "raid" or instanceType == "party") then
-            self.Inspector:SetActive(true);
-        else
-            self.Inspector:SetActive(false);
-        end
-    elseif (self:IsTagEnabled("PVP")) then -- Allow battlegrounds and arenas.
-        if (C_PvP.IsPVPMap()) then
-            self.Inspector:SetActive(false);
-        else
-            self.Inspector:SetActive(true);
-        end
-    end
-
-    if (self.Cache ~= nil) then self.Cache:Update(); end
-    if (self.Inspector ~= nil) then self.Inspector:Update(); end
-end
-
--- IsGuildMember("Tonedo") | IsGuildMember("Tonedo-HydraxianWatelords"), IsGuildMember("Tonedo", nil) IsGuildMember("Tonedo", "HydraxianWatelords")
+-- IsGuildMember("Tonedo") | IsGuildMember("Tonedo-HydraxianWaterlords"), IsGuildMember("Tonedo", nil) IsGuildMember("Tonedo", "HydraxianWaterlords")
 function GuildGearRules:IsGuildMember(playerName, realm)
     if (not IsInGuild()) then
         return false;
@@ -469,7 +553,6 @@ function GuildGearRules:IsGuildMember(playerName, realm)
     for i = 1, guildMembersCount do
         -- Realm name included by default.
         local guildieName = GetGuildRosterInfo(i);
-        --if stripRealm then name = self:StripRealm(name) end
         if (fullName == guildieName) then
             return true;
         end
@@ -477,10 +560,96 @@ function GuildGearRules:IsGuildMember(playerName, realm)
     return false;
 end
 
+function GuildGearRules:GuildMemberClassID(memberName)
+    if (memberName ~= nil and not memberName:match("-")) then
+        memberName = memberName .. "-" .. self.Realm;
+    end
+    local guildMembersCount = GetNumGuildMembers();
+    for i = 1, guildMembersCount do
+        local name, rankName, rankIndex, level, classDisplayName, zone, publicNote, officerNote, isOnline, status, class, achievementPoints, achievementRank, isMobile, canSoR, repStanding, GUID = GetGuildRosterInfo(i);
+        if (memberName == name) then
+            return self.UI:ClassNameID(classDisplayName);
+        end
+    end
+    return 1;
+end
+
+function GuildGearRules:GuildCharacterInfo(memberName, memberUID)
+    if (memberName ~= nil and not memberName:match("-")) then
+        memberName = memberName .. "-" .. self.Realm;
+    end
+
+    local guildMembersCount = GetNumGuildMembers();
+    for i = 1, guildMembersCount do
+        local name, rankName, rankIndex, level, classDisplayName, zone, publicNote, officerNote, isOnline, status, class, achievementPoints, achievementRank, isMobile, canSoR, repStanding, GUID = GetGuildRosterInfo(i);
+        local type, server, uid = strsplit("-", GUID);
+        if (memberName == name or memberUID == uid) then
+            local classID = self.UI:ClassNameID(classDisplayName);
+            local characterInfo =
+            {
+                Name = name,
+                Level = level,
+                ClassID = classID,
+                UnitID = unitID,
+                GUID = GUID,
+                UID = uid,
+	        };
+            return characterInfo;
+        end
+    end
+    return nil;
+end
+
+function GuildGearRules:IsIgnored(name)
+    for ignored in self.db.profile.ignoredReporters:gmatch('[^\n]+') do
+        if (ignored == name) then
+            return true;
+        end
+    end
+
+    return false;
+end
+
+function GuildGearRules:IgnoreReporter(name)
+    if (self:IsIgnored(name)) then return; end
+    local start = "\n";
+    if (self.db.profile.ignoredReporters:len() == 0) then start = ""; end
+    self.db.profile.ignoredReporters = self.db.profile.ignoredReporters .. start .. name;
+end
+
+function GuildGearRules:AddSorted(array, layer, toSort, text)
+    table.insert(array, layer .. toSort .. "-" .. text);
+end
+
+function GuildGearRules:PlaySound(condition, soundID)
+    if condition then
+        PlaySound(soundID)
+    end
+end
+
+-- Prevent player from having to see the inspection results themselves, causing spam in the chat window.
+function GuildGearRules:OutgoingWhisperFilter(event, msg)
+    if (self.IgnoreOutgoingWhispers > 0 and msg ~= self.Constants.InspectRequest) then
+        self.IgnoreOutgoingWhispers = self.IgnoreOutgoingWhispers - 1;
+        return true;
+    end
+end
+
+-- Replace inspects request with a message confirming if its success.
+function GuildGearRules:IncomingWhisperFilter(event, msg, author)
+    if (msg == self.Constants.InspectRequest) then
+        -- If inspection is on cooldown the player will not get notified about the attempt.
+        if (self.db.profile.inspectNotify and (time() - self.LastInspectRequest >= self.db.profile.inspectCooldown)) then
+            print(self.Constants.AddOnMessagePrefix .. self:StripRealm(author) .. " inspected you.");
+        end
+        return true;
+    end
+end
+
 function GuildGearRules:OnWhisper(event, text, targetPlayer)
-    if text == self.Constants.InspectRequest then
-        if self.db.profile.inspectGuildOnly and not self:IsGuildMember(targetPlayer) then
-            return
+    if (text == self.Constants.InspectRequest) then
+        if (self.db.profile.inspectGuildOnly and not self:IsGuildMember(targetPlayer)) then
+            return;
         end
 
         if (time() - self.LastInspectRequest < self.db.profile.inspectCooldown) then
@@ -498,12 +667,14 @@ function GuildGearRules:OnWhisper(event, text, targetPlayer)
                 -- If new message exceeds max string length, send previous and reset message to current item only.
                 if string.len(itemLinks) > 255 then
                     SendChatMessage(oldItemLinks, "WHISPER", GetDefaultLanguage("player"), targetPlayer)
+                    self.IgnoreOutgoingWhispers = self.IgnoreOutgoingWhispers + 1;
                     itemLinks = C_Item.GetItemLink(itemLocation)
                 end
             end
         end
         -- Send any lasting items.
         SendChatMessage(itemLinks, "WHISPER", GetDefaultLanguage("player"), targetPlayer)
+        self.IgnoreOutgoingWhispers = self.IgnoreOutgoingWhispers + 1;
     end
 end
 
@@ -513,13 +684,12 @@ function GuildGearRules:OnGuildUpdate(event, unitID)
         return;
     end
 
-    self.Inspector:SetActive(false);
     self:LoadGuildSettings();
 end
 
 function GuildGearRules:OnMessage(channel, event, text, playerName)
     -- Ignore messages sent by the user.
-    if string.find(string.lower(playerName), string.lower(self.CharacterName)) then
+    if string.find(string.lower(playerName), string.lower(self.Player.Name)) then
         return
     end
 
@@ -540,8 +710,13 @@ function GuildGearRules:OnSystemMessage(event, text)
     end
 end
 
-function GuildGearRules:PlaySound(condition, soundID)
-    if condition then
-        PlaySound(soundID)
+-- https://wow.gamepedia.com/API_UnitLevel
+-- "Note that the value returned by UnitLevel("player") will most likely be incorrect when called in a PLAYER_LEVEL_UP event handler,
+-- or shortly after leveling in general. Check the PLAYER_LEVEL_UP payload for the correct level."
+-- Core.Player.Level is updated on PLAYER_LEVEL_UP, might still give wrong results on other players though.
+function GuildGearRules:OnLevelUp(event, level)
+    self.Player.Level = level;
+    if (self.Inspector ~= nil and self.Inspector.IsActive) then
+        self.Inspector:ScanPlayer();
     end
 end
