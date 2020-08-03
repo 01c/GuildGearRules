@@ -76,17 +76,17 @@ function GuildGearRulesCharacterData:ClearItemSlot(slot)
     end
 end
 
-function GuildGearRulesCharacterData:NewBuff(spellID)
+function GuildGearRulesCharacterData:NewBuff(spellID, active)
     local index, buff = self.Buffs:ContainsElement("SpellID", spellID);
     -- Buff exists, only update time.
     if (index ~= nil) then
-        buff.Active = true;
+        buff.Active = active;
         buff.Time = date("%H:%M:%S");
     -- Buff doesn't exist, create it.
     else
         local buff = {
             SpellID = spellID,
-            Active = true,
+            Active = active,
             Time = date("%H:%M:%S"),
 	    };
         self.Buffs:Add(buff);
@@ -140,7 +140,7 @@ function GuildGearRulesCharacterData:OnUpdate(itemLink, spellID)
 
             local bannedThingSelf = itemLink;
             local bannedThingSend = itemLink;
-            -- Since colors cannot be sent in messages apart from links, we have to parse buffs specifically.
+            -- Since colors cannot be sent in messages apart from links, buffs must be parsed specifically.
             if (itemLink == nil) then
                 bannedThingSelf = Core.UI:Buff(spellID);
                 local name = GetSpellInfo(spellID);
@@ -149,7 +149,7 @@ function GuildGearRulesCharacterData:OnUpdate(itemLink, spellID)
 
             -- Announce self is cheating in guildchat to tell non-addOn users too.
             if (Core.Player.GUID == self.Character.GUID) then
-                SendChatMessage(Core.Constants.MessagePrefix .. _cstr(L["ALERT_MESSAGE_GUILD_CHAT_START"], bannedThingSend), Core.AnnounceChannel);
+                SendChatMessage(Core.Constants.MessagePrefix .. _cstr(L["ALERT_MESSAGE_GUILD_CHAT_START"], bannedThingSend), Core.Constants.AnnounceChannel);
             end
             
             Core.Inspector:Alert(self.Character.Name, self.Character.ClassID, bannedThingSelf, self.Capturer);
@@ -171,7 +171,7 @@ function GuildGearRulesCharacterData:Send()
     end
     data = data .. "&";
     for key, buff in ipairs(self.Buffs) do
-        data = data .. buff.SpellID .. ".";
+        data = data .. buff.SpellID .. "." .. BooleanToNumber[buff.Active] .. ".";
     end
 
     self.Character.HasUpdate = false;
@@ -209,10 +209,11 @@ function GuildGearRulesCharacterData:Read(message)
     end
     if (buffData ~= nil and buffData:len() > 0) then
         local index = 0;
-        local spellID = nil;
+        local spellID, active = nil;
         for arg in buffData:gmatch('[^%.]+') do
             if (index == 0) then spellID = tonumber(arg);
-                self:NewBuff(spellID);
+            elseif (index == 1) then active = NumberToBoolean[tonumber(arg)];
+                self:NewBuff(spellID, active);
                 index = -1;
             end
             index = index + 1;

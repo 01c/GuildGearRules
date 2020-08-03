@@ -174,28 +174,19 @@ end
 
 function GuildGearRulesInspector:Alert(name, classID, bannedThing, sender)
     self.Core:PlaySound(true, self.Core.db.profile.alertSoundID)
-    self.Core:Message(self.Core.UI:ClassIDColored(name, classID) .. " " .. _cstr(L["ALERT_MESSAGE_SELF"], bannedThing, self.Core.ViewCheatersCommand), sender);
+    self.Core:Message(self.Core.UI:ClassIDColored(name, classID) .. " " .. _cstr(L["ALERT_MESSAGE_SELF"], bannedThing, self.Core.Constants.ViewCheatersCommand), sender);
 end
 
 function GuildGearRulesInspector:AlertStopped(name, classID, sender)
     self.Core:PlaySound(true, self.Core.db.profile.alertSoundID)
-    self.Core:Message(L["ALERT_MESSAGE_STOPPED"], sender);
+    self.Core:Message(_cstr(L["ALERT_MESSAGE_STOPPED"], self.Core.UI:ClassIDColored(name, classID)), sender);
 end
 
 function GuildGearRulesInspector:ScanPlayer()
     self.Core:Log("Scanning player.");
 
-    local cheater = self:GetCheater(self.Core.Player.GUID);
-    local wasCheatingBeforeScan = (cheater ~= nil and cheater:CheatingDataCount() > 0);
-
     if (self:RulesApply(self.Core.Player.UnitID)) then
         self:ScanUnit(self.Core.Player);
-    end
-
-    cheater = self:GetCheater(self.Core.Player.GUID);
-    -- Stopped cheating.
-    if (wasCheatingBeforeScan and (cheater == nil or cheater:CheatingDataCount() == 0)) then
-        SendChatMessage(self.Core.Constants.MessagePrefix .. _cstr(L["ALERT_MESSAGE_GUILD_CHAT_ENDED"], "/ggr cheaters"), self.Core.AnnounceChannel);
     end
 end
 
@@ -283,10 +274,10 @@ function GuildGearRulesInspector:ShouldScan(unitID)
 
     -- Ignore non-players and user.
     if (not UnitIsPlayer(unitID) or UnitIsUnit(unitID, "player")) then return nil, nil; end
-    -- Dont issue any new requests if the inspect window is open to prevent it from bugging out (removing old data when new arrives)
+    -- Dont issue any new requests if the inspect window is open to prevent it from bugging out (removing old data when new arrives?)
     if (self:IsInspectWindowOpen()) then return nil, nil; end
-    --Make sure unit is same faction first to prevent error from CanInspect on other faction.
-    if (UnitFactionGroup(unitID) ~= UnitFactionGroup("player")) then return nil, nil; end
+    -- Make sure unit is same friendly to prevent error from CanInspect on other faction or duels with pets.
+    if (UnitIsEnemy(unitID, "player")) then return nil, nil; end
     -- 3 is the distIndex for Duel and Inspect (7 yards).
     if (not CheckInteractDistance(unitID, 3) or not CanInspect(unitID, false)) then return nil, nil; end
 
@@ -497,7 +488,7 @@ end
 function GuildGearRulesInspector:RegisterBuffCheat(characterInfo, spellID)
     local character = self:RegisterCheater(characterInfo);
     if (character ~= nil) then
-        character:GetData(self.Core.Player):NewBuff(spellID);
+        character:GetData(self.Core.Player):NewBuff(spellID, true);
     end
 end
 

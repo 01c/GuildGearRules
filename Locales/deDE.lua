@@ -12,7 +12,6 @@ L["GUILD_GEAR_RULES"] = "Gildenausrüstungsregeln"
 L["GGR"] = "GGR"
 L["CONFIG_COMMAND"] = "ggr"
 L["CONFIG_COMMAND_LONG"] = "guildgearrules"
-L["CONFIG_COMMAND_CHEATERS"] = "cheaters"
 L["ADDON_LOADED"] = "Gildenausrüstungsregeln geladen (Version %s). Schreibe %s für die Hilfe."
 L["VERSION"] = "Version"
 L["AUTHOR"] = "Author"
@@ -186,4 +185,4 @@ L["DEBUG_LOGS"] = "Protokoldatei"
 
 -- Scanned character is cheating, definitely localize.
 L["ALERT_MESSAGE_SELF"] = "benutzt %s! Für mehr Info: %s Oberfläche"
-L["ALERT_MESSAGE_STOPPED"] = "hat aufgehört zu Betrügen."
+L["ALERT_MESSAGE_STOPPED"] = "&s hat aufgehört zu Betrügen."

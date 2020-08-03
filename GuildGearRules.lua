@@ -119,11 +119,9 @@ function GuildGearRules:OnInitialize()
     self.db = LibStub("AceDB-3.0"):New("GuildGearRulesDB", defaults, true);
     self.LastLog = "";
     self.LogLines = { };
-    self.DownloadLink = "https://www.curseforge.com/wow/addons/guild-gear-rules";
-    self.ViewCheatersCommand = "|cffffff00/" .. L["CONFIG_COMMAND"] .. " cheaters|r";
-    self.AnnounceChannel = "PARTY";
 
     self.Constants = {
+        AnnounceChannel = "GUILD",
         Version = GetAddOnMetadata("GuildGearRules", "version");
         MessagePrefix = "[GGR] ",
         AddOnMessagePrefix = "|cff3ce13f[" .. L["GGR"] .. "]|r ",
@@ -131,6 +129,9 @@ function GuildGearRules:OnInitialize()
         DingPattern1 = '^d+i+n+g+',
         DingPattern2 = 'i .*d+i+n+g+e+d+',  
         AlertTestItemID = 19019,
+        ViewCheatersCommand = "|cffffff00/" .. L["CONFIG_COMMAND"] .. " cheaters|r",
+        ViewCheatersCommandOut = "/" .. L["CONFIG_COMMAND"] .. " cheaters",
+        DownloadLink = "https://www.curseforge.com/wow/addons/guild-gear-rules",
     };
 
     self.SettingTags = self:GetSettingTags();
@@ -446,26 +447,10 @@ function GuildGearRules:DoesTypeExist(id, type)
     return false;
 end
 
-function GuildGearRules:GetCharacterInfo(unitID)
-    local guid = UnitGUID(unitID);
-    if (guid == nil) then return nil; end
-
-    local _, _, classID = UnitClass(unitID);
-
-    local type, server, uid = strsplit("-", guid);
-    local characterInfo =
-    {
-        Name = UnitName(unitID),
-        Level = UnitLevel(unitID),
-        ClassID = classID,
-        UnitID = unitID,
-        GUID = guid,
-        UID = uid,
-	};
-    return characterInfo;
-end
-
 function GuildGearRules:StripRealm(name)
+    local i = string.find(name, "-");
+    -- Do nothing if name doesn't contain realm.
+    if (not i) then return name; end
     return string.sub(string.match(name, '^.*\-'), 0, -2)
 end
 
@@ -478,10 +463,6 @@ function GuildGearRules:LoadRealm()
     else
         self:Log("Failed loading realm.");
     end
-end
-
-function GuildGearRules:Info(text)
-    print(self.Constants.AddOnMessagePrefix .. text)
 end
 
 function GuildGearRules:Log(text, msgType)
@@ -506,7 +487,7 @@ function GuildGearRules:Log(text, msgType)
 
     local msg = color .. date("%H:%M:%S") .. ": " .. tostring(text) .. "|r";
 
-    if (self.db == nil) then print(self.Constants.AddOnMessagePrefix .. "Error: Profile not initialized. Tried to log: " .. text); return; end
+    if (self.db == nil) then self:Message("Error: Profile not initialized. Tried to log: " .. text); return; end
     if (self.db.profile.DebuggingLevel >= msgType) then
         table.insert(self.LogLines, { Text = msg, Times = 1 } );
         if (self.UI ~= nil) then self.UI:Refresh(); end
@@ -587,7 +568,7 @@ function GuildGearRules:GuildCharacterInfo(memberName, memberUID)
             local classID = self.UI:ClassNameID(classDisplayName);
             local characterInfo =
             {
-                Name = name,
+                Name = self:StripRealm(name),
                 Level = level,
                 ClassID = classID,
                 UnitID = unitID,
@@ -600,13 +581,31 @@ function GuildGearRules:GuildCharacterInfo(memberName, memberUID)
     return nil;
 end
 
+function GuildGearRules:GetCharacterInfo(unitID)
+    local guid = UnitGUID(unitID);
+    if (guid == nil) then return nil; end
+
+    local _, _, classID = UnitClass(unitID);
+
+    local type, server, uid = strsplit("-", guid);
+    local characterInfo =
+    {
+        Name = UnitName(unitID),
+        Level = UnitLevel(unitID),
+        ClassID = classID,
+        UnitID = unitID,
+        GUID = guid,
+        UID = uid,
+	};
+    return characterInfo;
+end
+
 function GuildGearRules:IsIgnored(name)
     for ignored in self.db.profile.ignoredReporters:gmatch('[^\n]+') do
         if (ignored == name) then
             return true;
         end
     end
-
     return false;
 end
 
@@ -640,7 +639,7 @@ function GuildGearRules:IncomingWhisperFilter(event, msg, author)
     if (msg == self.Constants.InspectRequest) then
         -- If inspection is on cooldown the player will not get notified about the attempt.
         if (self.db.profile.inspectNotify and (time() - self.LastInspectRequest >= self.db.profile.inspectCooldown)) then
-            print(self.Constants.AddOnMessagePrefix .. self:StripRealm(author) .. " inspected you.");
+            self:Message(self:StripRealm(author) .. " inspected you.");
         end
         return true;
     end

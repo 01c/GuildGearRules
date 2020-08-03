@@ -165,7 +165,7 @@ function GuildGearRulesUserInterface:GetOptions()
                                 width = "full",
                                 disabled = false,
                                 name = L["CORE_INFO_UPDATES"],
-                                get = function() return self.Core.DownloadLink; end,
+                                get = function() return self.Core.Constants.DownloadLink; end,
 					        },
                         },
                     },

@@ -249,21 +249,24 @@ function GuildGearRulesNetwork:GetUsersList()
 end
 
 function GuildGearRulesNetwork:UpdateGuildMemberList()
-    -- Check if a user has logged in that is not in the list and then add it, requesting their version.
-    -- (In case they have not broadcasted their version, i.e. they are running a version below v1.4.)
-    -- Flag users who have logged off as offline.
+    -- Flag users who have logged off as offline and vice-versa.
     local guildMembersCount = GetNumGuildMembers();
     for i = 1, guildMembersCount do
         local name, rankName, rankIndex, level, classDisplayName, zone, publicNote, officerNote, isOnline = GetGuildRosterInfo(i);
         name = self.Core:StripRealm(name);
 
-        if (not isOnline and self.GuildMemberVersions[name] ~= nil) then
-            self.GuildMemberVersions[name].Online = false;
+        -- If a user logs in that was logged in previously (might have updated) or has not been logged at all, ask for their version.
+        if (isOnline and (self.GuildMemberVersions[name] == nil or (self.GuildMemberVersions[name] ~= nil and not self.GuildMemberVersions[name].Online))) then         
+            local version = "?";
+            if (self.GuildMemberVersions[name] ~= nil) then version = self.GuildMemberVersions[name].Version; end
+
+            self.GuildMemberVersions[name] = { Version = version, Online = true, ClassID = self.UI:ClassNameID(classDisplayName) };
+            self:Send(COMMS.SCAN_GGR, self.Core.Constants.Version, "WHISPER", name);
         end
 
-        if(isOnline and self.GuildMemberVersions[name] == nil) then
-            self:Send(COMMS.SCAN_GGR, self.Core.Constants.Version, "WHISPER", name)
-            self.GuildMemberVersions[name] = { Version = "?", Online = true, ClassID = self.UI:ClassNameID(classDisplayName) };
+        -- Update online status.
+        if (self.GuildMemberVersions[name] ~= nil) then
+            self.GuildMemberVersions[name].Online = isOnline;
         end
     end
 end

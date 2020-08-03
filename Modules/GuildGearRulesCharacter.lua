@@ -76,17 +76,16 @@ function GuildGearRulesCharacter:DataUpdated(data)
 
     if (self:CheatingDataCount() == 0) then
         if (self.HasAlerted) then
-            Core.Inspector:AlertStopped(self.Name, self.ClassID, nil);
+            Core.Inspector:AlertStopped(self.Name, self.ClassID, data.Capturer);
 
             if (Core.Player.GUID == self.GUID) then
-                SendChatMessage(Core.Constants.MessagePrefix .. _cstr(L["ALERT_MESSAGE_GUILD_CHAT_ENDED"], Core.ViewCheatersCommand), "PARTY");
+                SendChatMessage(Core.Constants.MessagePrefix .. _cstr(L["ALERT_MESSAGE_GUILD_CHAT_ENDED"], Core.Constants.ViewCheatersCommandOut), Core.Constants.AnnounceChannel);
             end
         end
         -- Not breaking rules, reset alert to fire again.
         self.HasAlerted = false;
     end
 end
-
 
 function GuildGearRulesCharacter:RemoveData(capturer)
     for index, data in pairs(self.Data) do

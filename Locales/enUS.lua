@@ -187,7 +187,7 @@ L["DEBUG_LOGS"] = "Logs"
 
 -- Player is cheating. These should not be localized to other languages than the primary language since they are shared with other players.
 L["ALERT_MESSAGE_GUILD_CHAT_START"] = "Opsies, I'm using %s!"
-L["ALERT_MESSAGE_GUILD_CHAT_ENDED"] = "I'm cheating no more, I promise! Check %s to make sure."
+L["ALERT_MESSAGE_GUILD_CHAT_ENDED"] = "I'm cheating no more. Check %s to make sure."
 -- Scanned character is cheating, definitely localize.
 L["ALERT_MESSAGE_SELF"] = "has %s, view more info in %s."
-L["ALERT_MESSAGE_STOPPED"] = "stopped cheating."
+L["ALERT_MESSAGE_STOPPED"] = "%s stopped cheating."
