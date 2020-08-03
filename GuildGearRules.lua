@@ -413,8 +413,8 @@ end
 function GuildGearRules:HandleIDArgument(arg, list, idList, type)
     local numberArg = tonumber(arg);
     if (numberArg ~= nil) then
-        if (self:DoesTypeExist(arg, type)) then
-            list:Add(arg);
+        if (self:DoesTypeExist(numberArg, type)) then
+            list:Add(numberArg);
         end
     else
         -- Is string, check if it matches one of the ID families.

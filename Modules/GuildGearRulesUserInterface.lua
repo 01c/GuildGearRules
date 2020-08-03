@@ -964,7 +964,6 @@ end
 function GuildGearRulesUserInterface:ShowTab(tab)
     self:Show()
     if (tab ~= nil) then
-        print(tab)
         LibStub("AceConfigDialog-3.0"):SelectGroup("GuildGearRules", tab);
     end
 end

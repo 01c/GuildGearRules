@@ -9,6 +9,7 @@ function GuildGearRulesTable:Contains(val)
             return index;
         end
     end
+    return false;
 end
 
 function GuildGearRulesTable:ContainsElement(key, val)

@@ -76,6 +76,7 @@ function GuildGearRulesNetwork:Send(messageType, data, channel, target)
     local message = messageType;
     if (data ~= nil) then message = message .. data; end
     self:SendCommMessage(self.CommsPrefix, message, channel, target)
+    self:Log("Sending " .. message .. " to " .. tostring(target));
 end
 
 function GuildGearRulesNetwork:OnCommReceived(prefix, text, distribution, sender)
@@ -83,6 +84,7 @@ function GuildGearRulesNetwork:OnCommReceived(prefix, text, distribution, sender
     if (prefix ~= self.CommsPrefix or not self.Core:IsGuildMember(sender)) then
         return;
     end
+    self:Log("Received " .. text .. " from " .. sender);
 
     local identifier = string.sub(text, 0, 2);
     local contents = string.sub(text, 3);
@@ -122,12 +124,13 @@ function GuildGearRulesNetwork:OnCommReceived(prefix, text, distribution, sender
         if (sender == self.Core.Player.Name or self.Core:IsIgnored(senderCharacter.Name)) then return; end
 
         local scannedUID = contents:match("(.-)&");
+        if (not scannedUID) then return; end
         contents = contents:sub(scannedUID:len() + 2);
         local guid = self.Core.GUIDStart .. scannedUID;
 
         local scannedCharacter = self.Core:GuildCharacterInfo(nil, scannedUID);
         local character = self.Core.Inspector:RegisterCheater(scannedCharacter);
-        if (character ~= nil) then
+        if (character ~= nil and scannedCharacter ~= nil) then
             -- Sender has cleared data on cheater, remove entirely.
             if (contents:len() < 3) then
                 self:Log("Removing data from " .. senderCharacter.Name .. " on " .. scannedCharacter.Name .. ".");
