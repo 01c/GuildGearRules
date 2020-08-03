@@ -29,11 +29,6 @@ function GuildGearRulesNetwork:Initialize(core)
     self.GuildMemberVersions = { };
     self.MessageToNonUsers = "";
 
-    self:RegisterComm(self.CommsPrefix);
-    self.Core:Log(tostring(self) .. " initialized.");
-
-    self:RegisterEvent("GUILD_ROSTER_UPDATE", "UpdateGuildMemberList")
-
     local guildMembersCount = GetNumGuildMembers();
     for i = 1, guildMembersCount do
         local name, rankName, rankIndex, level, classDisplayName, zone, publicNote, officerNote, isOnline = GetGuildRosterInfo(i);
@@ -43,8 +38,8 @@ function GuildGearRulesNetwork:Initialize(core)
         end
     end
 
-    -- Broadcast addon version at start, at the same time requesting version from clients v1.4 and later.
-    self:Send(COMMS.SCAN_GGR, self.Core.Constants.Version, "GUILD");
+    self:Log(tostring(self) .. " initialized.");
+    self:ScheduleTimer("RegisterComms", 1);
     return self;
 end
 
@@ -52,6 +47,16 @@ function GuildGearRulesNetwork:Log(text, msgType)
     if (self.Core.db.profile.DebugNetwork) then
         self.Core:Log("Network: " .. text, msgType)
     end
+end
+
+function GuildGearRulesNetwork:RegisterComms()
+    -- Registering Comms on initialization caused infinite loading screen every 1/3 login or so once a few people in the guild had 1.4.
+    -- Delaying it by one second seems to have fixed it. 
+    self:RegisterComm(self.CommsPrefix);
+    -- Broadcast addon version at start, at the same time requesting version from clients v1.4 and later.
+    self:Send(COMMS.SCAN_GGR, self.Core.Constants.Version, "GUILD");
+    self:RegisterEvent("GUILD_ROSTER_UPDATE", "UpdateGuildMemberList");
+    self:Log(tostring(self) .. " registered for Comms.");
 end
 
 function GuildGearRulesNetwork:GetActiveAddOns()
