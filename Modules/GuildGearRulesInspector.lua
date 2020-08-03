@@ -240,11 +240,7 @@ function GuildGearRulesInspector:ValidateBuffs(characterInfo, ggrTable)
 end
 
 function GuildGearRulesInspector:IsInspectWindowOpen()
-    local inspectFrame = InspectPaperDollItemsFrame;
-    if (inspectFrame ~= nil and inspectFrame:IsVisible()) then
-        return true;
-    end
-    return false;
+    return (InspectFrame ~= nil and InspectFrame:IsVisible());
 end
 
 function GuildGearRulesInspector:AttemptScan(unitID)
