@@ -71,7 +71,7 @@ function GuildGearRulesInspector:SetActive(active)
         self:ScanPlayer();
         self:RegisterEvent("UPDATE_MOUSEOVER_UNIT", "OnNewUnit", "mouseover");
         self:RegisterEvent("PLAYER_TARGET_CHANGED", "OnNewUnit", "target");
-        self:RegisterEvent("UNIT_AURA", "ScanPlayer");
+        self:RegisterEvent("UNIT_AURA", "OnUnitAura");
         -- Ensure buffs that could not be removed when in combat are removed.
         self:RegisterEvent("PLAYER_REGEN_ENABLED", "ScanPlayer");
         self:RegisterEvent("PLAYER_EQUIPMENT_CHANGED", "ScanPlayer");
@@ -504,5 +504,11 @@ function GuildGearRulesInspector:OnNewUnit(unitID, event)
     if (self.LastDirectInspectTime ~= time()) then
         self.LastDirectInspectTime = time();
         self:AttemptScan(unitID);
+    end
+end
+
+function GuildGearRulesInspector:OnUnitAura(event, unitID)
+    if (unitID == "player") then
+        self:ScanPlayer();
     end
 end
