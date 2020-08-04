@@ -16,6 +16,8 @@ local C = {
     RED = "|cffcb2121",
     GREEN = "|cff49cb21",
     ORANGE = "|cffcb8121",
+    GRAY = "|cFFCFCFCF",
+    WHITE = '|cFFFFFFFF',
 };
 
 local CLASSES_FILE =
@@ -102,6 +104,14 @@ function GuildGearRulesUserInterface:Initialize(core)
     self.Core = core;
     self.Network = self.Core:GetModule("GuildGearRulesNetwork");
 
+    LibStub("AceConfig-3.0"):RegisterOptionsTable("GuildGearRules", self:GetOptions());
+    self.optionsFrame = LibStub("AceConfigDialog-3.0"):AddToBlizOptions("GuildGearRules", L["GUILD_GEAR_RULES"]);
+    self.optionsFrame.default = function() self.Core.db:ResetProfile(self.Core:DefaultSettings()); self:Refresh(); end;
+    self:Refresh();
+
+    self.MinimapButtonTexture = 136031;
+    self.MinimapButtonTextureActive = 135995;
+
     self.SortedCheaterGUIDS = { };
     self.SortedCheaterIDs = { };
     self.ViewedCheater = nil;
@@ -109,8 +119,107 @@ function GuildGearRulesUserInterface:Initialize(core)
 
     self.ScanGuildAddOnsInput = "";
 
+    self:SetupMinimapButton();
+    if (not self.Core.db.profile.HideWarning) then
+        self:ShowWarning();
+    end
+
     self.Core:Log(tostring(self) .. " initialized.");
     return self;
+end
+
+function GuildGearRulesUserInterface:SetupMinimapButton()
+    local lbd = LibStub("LibDataBroker-1.1"):NewDataObject("GuildGearRules", {
+        type = "data source",
+        text = L["GUILD_GEAR_RULES"],
+        icon = self.MinimapButtonTexture,
+        OnClick = function(_, button)
+            if button == "LeftButton" then
+                self:Show();
+                return;
+            elseif button == "MiddleButton" then
+                self:ShowTab("rules");
+                return;
+            elseif button == "RightButton" then
+                if not IsModifierKeyDown() then
+                    self:ShowTab("cheatersTab");
+                    return;
+                elseif IsControlKeyDown() then
+                    self:ToggleMinimapButton();
+                    return;
+                end
+            end
+        end,
+        OnTooltipShow = function (tooltip)
+            tooltip:AddDoubleLine(Color(C.WHITE, L["GUILD_GEAR_RULES"]), "v" .. self.Core.Constants.Version);
+            tooltip:AddLine(Color(C.RULE, L["MINIMAP_BUTTON_DESC"]) .. "\n\n");
+            tooltip:AddLine(Color(C.GRAY, L["LEFT_CLICK"]) .. ": " .. L["TOGGLE_FRAME"]);
+            tooltip:AddLine(Color(C.GRAY, L["MIDDLE_CLICK"]) .. ": " .. L["OPEN_RULES"]);
+            tooltip:AddLine(Color(C.GRAY, L["RIGHT_CLICK"]) .. ": " .. L["OPEN_CHEATERS"]);
+            tooltip:AddLine(Color(C.GRAY, L["RIGHT_CLICK_CTRL"]) .. ": " .. L["HIDE_MINIMAP_BUTTON"]);
+        end,
+    });
+    self.MinimapButton = LibStub("LibDBIcon-1.0");
+    self.MinimapButton:Register("GuildGearRules", lbd, self.Core.db.profile.MinimapButton);
+    self:RefreshMinimapButtonAlertState();
+end
+
+function GuildGearRulesUserInterface:RefreshMinimapButtonAlertState(state)
+    local anyCheaters = false;
+    for key, cheater in pairs(self.Core.Inspector.Cheaters) do
+        if (cheater:CheatingDataCount() > 0) then
+            anyCheaters = true;
+            break;
+        end
+    end
+    local icon = self.MinimapButton:GetMinimapButton("GuildGearRules").icon;
+    if (anyCheaters) then
+        icon:SetVertexColor(1, 1, 1);
+        icon:SetTexture(self.MinimapButtonTextureActive);
+    else
+        icon:SetVertexColor(0.5, 0.5, 0.5);
+        icon:SetTexture(self.MinimapButtonTexture);
+    end
+end
+
+function GuildGearRulesUserInterface:ToggleMinimapButton()
+    self.Core.db.profile.MinimapButton.hide = not self.Core.db.profile.MinimapButton.hide; 
+    if (self.Core.db.profile.MinimapButton.hide) then 
+        self.MinimapButton:Hide("GuildGearRules"); 
+    else 
+        self.MinimapButton:Show("GuildGearRules");
+    end
+    self:Refresh();
+end
+
+function GuildGearRulesUserInterface:ShowWarning()
+    local AceGUI = LibStub("AceGUI-3.0");
+    -- Create a container frame
+    local f = AceGUI:Create("Frame");
+    f:SetWidth(400);
+    f:SetHeight(200);
+    f.frame:SetMaxResize(400, 200);
+    f:SetCallback("OnClose",function(widget) AceGUI:Release(widget) end);
+    f:SetTitle(L["GUILD_GEAR_RULES"] .. " " .. L["WARNING"]);
+    f:SetLayout("Flow");
+
+    local desc = AceGUI:Create("Label");
+    desc:SetText(_cstr(L["WARNING_DESC"], L["GUILD_GEAR_RULES"]));
+    desc:SetFullWidth(true);
+
+    local openOptions = AceGUI:Create("Button");
+    openOptions:SetText(L["OPEN_SETTINGS"]);
+    openOptions:SetWidth(200);
+    openOptions:SetCallback("OnClick", function() print(self.Show()) end)
+
+    local checkBox = AceGUI:Create("CheckBox");
+    checkBox:SetCallback("OnValueChanged", function(widget, callback, val) self.Core.db.profile.HideWarning = val; end);
+    checkBox:SetLabel(L["DONT_SHOW_AGAIN"]);
+    checkBox:SetFullWidth(true);
+
+    f:AddChild(desc);
+    f:AddChild(openOptions);
+    f:AddChild(checkBox);
 end
 
 function GuildGearRulesUserInterface:GetOptions()
@@ -124,15 +233,15 @@ function GuildGearRulesUserInterface:GetOptions()
                 order = 0.1,
                 type = "execute",
                 guiHidden = true,
-                name = L["OPEN_GUI"],
-                func = "Show",
+                name = L["TOGGLE_FRAME"],
+                func = function() self:Show(); end,
 			},
             cheaters = {
                 order = 0.2,
                 type = "execute",
                 guiHidden = true,
-                name = L["OPEN_CHEATERS_TAB"],
-                func = function() self:ShowTab("cheatersTab") end,
+                name = L["OPEN_CHEATERS"],
+                func = function() self:ShowTab("cheatersTab"); end,
 			},
             mainDesc = {
                 order = 0.3,
@@ -181,16 +290,32 @@ function GuildGearRulesUserInterface:GetOptions()
                                 type = "toggle",
                                 name = L["CORE_REMOVE_BANNED_BUFFS"],
                                 desc = L["CORE_REMOVE_BANNED_BUFFS_DESC"],
-                                set = function(info,val) self.Core.db.profile.removeBannedBuffs = val end,
-                                get = function(info) return self.Core.db.profile.removeBannedBuffs end,
+                                set = function(info,val) self.Core.db.profile.removeBannedBuffs = val; end,
+                                get = function(info) return self.Core.db.profile.removeBannedBuffs; end,
                             },
                             receiveData = {
                                 order = 2,
                                 type = "toggle",
                                 name = L["CORE_RECEIVE_DATA"],
                                 desc = L["CORE_RECEIVE_DATA_DESC"],
-                                set = function(info,val) self.Core.db.profile.receiveData = val end,
-                                get = function(info) return self.Core.db.profile.receiveData end,
+                                set = function(info,val) self.Core.db.profile.receiveData = val; end,
+                                get = function(info) return self.Core.db.profile.receiveData; end,
+                            },
+                            minimapButton = {
+                                order = 3,
+                                type = "toggle",
+                                name = L["CORE_MINIMAP_BUTTON"],
+                                desc = L["CORE_MINIMAP_BUTTON_DESC"],
+                                set = function(info,val) self:ToggleMinimapButton() end,
+                                get = function(info) return not self.Core.db.profile.MinimapButton.hide; end,
+                            },
+                            startUpWarning = {
+                                order = 4,
+                                type = "toggle",
+                                name = L["CORE_STARTUP_WARNING"],
+                                desc = L["CORE_STARTUP_WARNING_DESC"],
+                                set = function(info,val) self.Core.db.profile.HideWarning = val; end,
+                                get = function(info) return self.Core.db.profile.HideWarning; end,
                             },
                         },
                     },
@@ -957,12 +1082,19 @@ function GuildGearRulesUserInterface:GetCheaterBannedBuffs(active)
     return text;
 end
 
-function GuildGearRulesUserInterface:Show()
-    LibStub("AceConfigDialog-3.0"):Open("GuildGearRules");
+function GuildGearRulesUserInterface:Show(ignoreToggle)
+    ignoreToggle = ignoreToggle or false;
+    local dialog = LibStub("AceConfigDialog-3.0");
+    if (dialog.OpenFrames["GuildGearRules"] and not ignoreToggle) then
+        dialog:Close("GuildGearRules")
+    else
+        PlaySound(882);
+        dialog:Open("GuildGearRules")
+    end
 end
 
 function GuildGearRulesUserInterface:ShowTab(tab)
-    self:Show()
+    self:Show(true)
     if (tab ~= nil) then
         LibStub("AceConfigDialog-3.0"):SelectGroup("GuildGearRules", tab);
     end

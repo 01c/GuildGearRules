@@ -2,6 +2,12 @@ GuildGearRulesNetwork = GuildGearRules:NewModule("GuildGearRulesNetwork", "AceCo
 local L = LibStub("AceLocale-3.0"):GetLocale("GuildGearRules");
 local _cstr = string.format;
 
+local DEBUG_MSG_TYPE = {
+    ERROR = 1,
+    WARNING = 2,
+    INFO = 3,
+};
+
 local COLOR_SEARCH = {
     NONE = "|cff889d9d",
     SOME = "|cffffff00",
@@ -121,16 +127,17 @@ function GuildGearRulesNetwork:OnCommReceived(prefix, text, distribution, sender
         end
     elseif (identifier == COMMS.CHEATER_DATA and self.Core.db.profile.receiveData) then
         local senderCharacter = self.Core:GuildCharacterInfo(sender);
-        if (sender == self.Core.Player.Name or self.Core:IsIgnored(senderCharacter.Name)) then return; end
+        if (sender == self.Core.Player.Name or self.Core:IsIgnored(senderCharacter.Name)) then self:Log("Sender is ignored or self."); return; end
 
         local scannedUID = contents:match("(.-)&");
-        if (not scannedUID) then return; end
+        if (not scannedUID) then self:Log("Couldn't get UID from message.", DEBUG_MSG_TYPE.ERROR); return; end
         contents = contents:sub(scannedUID:len() + 2);
-        local guid = self.Core.GUIDStart .. scannedUID;
 
         local scannedCharacter = self.Core:GuildCharacterInfo(nil, scannedUID);
+        if (scannedCharacter == nil) then self:Log("Couldn't resolve scanned character from message.", DEBUG_MSG_TYPE.ERROR); return; end
+
         local character = self.Core.Inspector:RegisterCheater(scannedCharacter);
-        if (character ~= nil and scannedCharacter ~= nil) then
+        if (character ~= nil) then
             -- Sender has cleared data on cheater, remove entirely.
             if (contents:len() < 3) then
                 self:Log("Removing data from " .. senderCharacter.Name .. " on " .. scannedCharacter.Name .. ".");

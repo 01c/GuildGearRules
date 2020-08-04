@@ -85,6 +85,8 @@ function GuildGearRulesCharacter:DataUpdated(data)
         -- Not breaking rules, reset alert to fire again.
         self.HasAlerted = false;
     end
+
+    Core.UI:RefreshMinimapButtonAlertState();
 end
 
 function GuildGearRulesCharacter:RemoveData(capturer)

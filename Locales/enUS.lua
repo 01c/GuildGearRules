@@ -15,7 +15,6 @@ L["ADDON_LOADED"] = "Guild Gear Rules loaded (version %s). Type %s for help."
 L["VERSION"] = "Version"
 L["AUTHOR"] = "Author"
 L["OPEN_GUI"] = "Open the GUI."
-L["OPEN_CHEATERS_TAB"] = "Display information on cheaters."
 L["MESSAGE_RECEIVED"] = "|cff3ce13f[GGR-%s]|r "
 
 L["ENABLED"] = "Enabled"
@@ -61,6 +60,19 @@ L["SOUND_LEVEL_UP"] = "Level Up"
 L["SOUND_PVP_VICTORY_ALLIANCE"] = "PVP Victory Alliance"
 L["SOUND_PVP_VICTORY_HORDE"] = "PVP Victory Horde"
 
+-- Minimap button.
+L["MINIMAP_BUTTON_DESC"] = "Icon lights up when cheaters are detected."
+
+L["LEFT_CLICK"] = "Left Click"
+L["MIDDLE_CLICK"] = "Middle Click"
+L["RIGHT_CLICK"] = "Right Click"
+L["RIGHT_CLICK_CTRL"] = "Right Click + Ctrl"
+
+L["TOGGLE_FRAME"] = "Toggle Frame"
+L["OPEN_RULES"] = "Open Rules"
+L["OPEN_CHEATERS"] = "Open Cheaters"
+L["HIDE_MINIMAP_BUTTON"] = "Hide Minimap Button"
+
 -- Core tab.
 L["CORE"] = "Core"
 L["CORE_INFO"] = "Information"
@@ -75,6 +87,10 @@ L["CORE_REMOVE_BANNED_BUFFS"] = "Remove Banned Buffs"
 L["CORE_REMOVE_BANNED_BUFFS_DESC"] = "Automatically removes any banned buffs. Be sure to check the rules thoroughly, as used consumables might otherwise be wasted."
 L["CORE_RECEIVE_DATA"] = "Receive Data"
 L["CORE_RECEIVE_DATA_DESC"] = "Receive data from other users.\nIf disabled, you will only gain information on nearby cheaters."
+L["CORE_MINIMAP_BUTTON"] = "Minimap Button"
+L["CORE_MINIMAP_BUTTON_DESC"] = "Show or hide the Minimap Button."
+L["CORE_STARTUP_WARNING"] = "Hide Startup Warning"
+L["CORE_STARTUP_WARNING_DESC"] = "Hide the warning that informs you about automatically removing buffs."
 
 L["INSPECTION"] = "Distant Inspection"
 L["INSPECTION_NOTIFY"] = "Notify"

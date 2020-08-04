@@ -1,10 +1,10 @@
 ## Interface: 11305
-## Version: 1.4.4
+## Version: 1.4.5
 ## Title: Guild Gear Rules
 ## Author: Tonedo aka 01d
 ## Notes: Automated and easier checking of rules for guilds looking to explore a more dangerous Azeroth.
 ## SavedVariables: GuildGearRulesDB
-## OptionalDeps: Ace3
+## OptionalDeps: Ace3, LibDBIcon-1.0, LibDataBroker-1.1
 ## X-Embeds: Ace3
 
 embeds.xml

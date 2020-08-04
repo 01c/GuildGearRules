@@ -8,34 +8,6 @@ local DEBUG_MSG_TYPE = {
     INFO = 3,
 };
 
-local defaults = {
-    profile = {
-        HideWarning = false,
-        DebuggingLevel = 0,
-        DebugCache = false,
-        DebugNetwork = false,
-        DebugData = false,
-
-        removeBannedBuffs = true,
-        receiveData = true,
-        alertSoundID = 8959,
-
-        inspectNotify = true,
-        inspectGuildOnly = true,
-        inspectCooldown = 5,
-
-        welcomeEnabled = false,
-        welcomeSoundID = 7094,
-
-        gratulateEnabled = false,
-        gratulateSoundID = 124,
-        gratulateParty = true,
-        gratulateGuild = true,
-
-        ignoredReporters = "",
-    },
-};
-
 local ITEM_FAMILIES = {
     {
         Tag = "TOY",
@@ -116,7 +88,7 @@ local BUFF_FAMILIES = {
 }
 
 function GuildGearRules:OnInitialize()
-    self.db = LibStub("AceDB-3.0"):New("GuildGearRulesDB", defaults, true);
+    self.db = LibStub("AceDB-3.0"):New("GuildGearRulesDB", self:DefaultSettings(), true);
     self.LastLog = "";
     self.LogLines = { };
 
@@ -161,16 +133,6 @@ function GuildGearRules:OnInitialize()
     self.Realm = nil;
     self.Guild = nil;
     self.Player = self:GetCharacterInfo("player");
-    local type, server, uid = strsplit("-", self.Player.GUID);
-    self.GUIDStart = type .. "-" .. server .. "-";
-
-    self.UpdateTimer = self:ScheduleRepeatingTimer("Update", 1);
-    self.MinuteTimer = self:ScheduleRepeatingTimer("EveryMinute", 60);
-
-    LibStub("AceConfig-3.0"):RegisterOptionsTable("GuildGearRules", self.UI:GetOptions());
-    self.optionsFrame = LibStub("AceConfigDialog-3.0"):AddToBlizOptions("GuildGearRules", L["GUILD_GEAR_RULES"]);
-    self.optionsFrame.default = function() self.db:ResetProfile(defaults); self.UI:Refresh(); end;
-    self.UI:Refresh();
 
     self:RegisterChatCommand(L["CONFIG_COMMAND"] , "ChatCommand");
     self:RegisterChatCommand(L["CONFIG_COMMAND_LONG"], "ChatCommand");
@@ -181,39 +143,40 @@ function GuildGearRules:OnInitialize()
     self:LoadGuildSettings();
     self:LoadRealm();
 
-    if (not self.db.profile.HideWarning) then
-        self:Warning();
-    end
+    self.UpdateTimer = self:ScheduleRepeatingTimer("Update", 1);
+    self.MinuteTimer = self:ScheduleRepeatingTimer("EveryMinute", 60);
 end
 
-function GuildGearRules:Warning()
-    local AceGUI = LibStub("AceGUI-3.0");
-    -- Create a container frame
-    local f = AceGUI:Create("Frame");
-    f:SetWidth(400);
-    f:SetHeight(200);
-    f.frame:SetMaxResize(400, 200);
-    f:SetCallback("OnClose",function(widget) AceGUI:Release(widget) end);
-    f:SetTitle(L["GUILD_GEAR_RULES"] .. " " .. L["WARNING"]);
-    f:SetLayout("Flow");
+function GuildGearRules:DefaultSettings()
+    local defaults = {
+        profile = {
+            MinimapButton = { hide = false },
+            HideWarning = false,
+            DebuggingLevel = 0,
+            DebugCache = false,
+            DebugNetwork = false,
+            DebugData = false,
 
-    local desc = AceGUI:Create("Label");
-    desc:SetText(_cstr(L["WARNING_DESC"], L["GUILD_GEAR_RULES"]));
-    desc:SetFullWidth(true);
+            removeBannedBuffs = true,
+            receiveData = true,
+            alertSoundID = 8959,
 
-    local openOptions = AceGUI:Create("Button");
-    openOptions:SetText(L["OPEN_SETTINGS"]);
-    openOptions:SetWidth(200);
-    openOptions:SetCallback("OnClick", function() print(self.UI:Show()) end)
+            inspectNotify = true,
+            inspectGuildOnly = true,
+            inspectCooldown = 5,
 
-    local checkBox = AceGUI:Create("CheckBox");
-    checkBox:SetCallback("OnValueChanged", function(widget, callback, val) self.db.profile.HideWarning = val; end);
-    checkBox:SetLabel(L["DONT_SHOW_AGAIN"]);
-    checkBox:SetFullWidth(true);
+            welcomeEnabled = false,
+            welcomeSoundID = 7094,
 
-    f:AddChild(desc);
-    f:AddChild(openOptions);
-    f:AddChild(checkBox);
+            gratulateEnabled = false,
+            gratulateSoundID = 124,
+            gratulateParty = true,
+            gratulateGuild = true,
+
+            ignoredReporters = "",
+        },
+    };
+    return defaults;
 end
 
 function GuildGearRules:OnEnable()
@@ -476,19 +439,16 @@ function GuildGearRules:Log(text, msgType)
         return;
     end
 
-    self.LastLog = text;
-
-    local color = "";
-    if (msgType == DEBUG_MSG_TYPE.WARNING) then
-        color = "|cffff8000";
-    elseif (msgType == DEBUG_MSG_TYPE.ERROR) then
-        color = "|cffff4700";
-    end
-
-    local msg = color .. date("%H:%M:%S") .. ": " .. tostring(text) .. "|r";
-
     if (self.db == nil) then self:Message("Error: Profile not initialized. Tried to log: " .. text); return; end
     if (self.db.profile.DebuggingLevel >= msgType) then
+        local color = "";
+        if (msgType == DEBUG_MSG_TYPE.WARNING) then
+            color = "|cffff8000";
+        elseif (msgType == DEBUG_MSG_TYPE.ERROR) then
+            color = "|cffff4700";
+        end
+        local msg = color .. date("%H:%M:%S") .. ": " .. tostring(text) .. "|r";
+        self.LastLog = text;
         table.insert(self.LogLines, { Text = msg, Times = 1 } );
         if (self.UI ~= nil) then self.UI:Refresh(); end
     end

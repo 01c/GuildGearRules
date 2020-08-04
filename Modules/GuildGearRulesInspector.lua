@@ -103,6 +103,7 @@ function GuildGearRulesInspector:ForgetCheater(cheater)
 
     -- Update currently viewed cheater in UI.
     self.Core.UI:UpdateCharacterView();
+    self.Core.UI:RefreshMinimapButtonAlertState();
 end
 
 function GuildGearRulesInspector:Update()

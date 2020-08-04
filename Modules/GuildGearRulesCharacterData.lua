@@ -191,7 +191,7 @@ function GuildGearRulesCharacterData:Read(message)
     self.HasCheated = true;
 
     local itemData = string.match(message, "(.+)&");
-    local buffData = string.match(message, "&([%d,]+)");
+    local buffData = string.match(message, "&([%d.]+)");
 
     if (itemData ~= nil and itemData:len() > 0) then
         local index = 0;
