@@ -150,7 +150,6 @@ end
 function GuildGearRules:DefaultSettings()
     local defaults = {
         profile = {
-            MinimapButton = { hide = false },
             HideWarning = false,
             DebuggingLevel = 0,
             DebugCache = false,
@@ -172,9 +171,13 @@ function GuildGearRules:DefaultSettings()
             gratulateSoundID = 124,
             gratulateParty = true,
             gratulateGuild = true,
-
-            ignoredReporters = "",
         },
+        char = {
+            MinimapButton = { hide = false },
+		},
+        factionrealm = {
+            ignoredReporters = "",  
+		}
     };
     return defaults;
 end
@@ -561,7 +564,7 @@ function GuildGearRules:GetCharacterInfo(unitID)
 end
 
 function GuildGearRules:IsIgnored(name)
-    for ignored in self.db.profile.ignoredReporters:gmatch('[^\n]+') do
+    for ignored in self.db.factionrealm.ignoredReporters:gmatch('[^\n]+') do
         if (ignored == name) then
             return true;
         end
@@ -572,8 +575,8 @@ end
 function GuildGearRules:IgnoreReporter(name)
     if (self:IsIgnored(name)) then return; end
     local start = "\n";
-    if (self.db.profile.ignoredReporters:len() == 0) then start = ""; end
-    self.db.profile.ignoredReporters = self.db.profile.ignoredReporters .. start .. name;
+    if (self.db.factionrealm.ignoredReporters:len() == 0) then start = ""; end
+    self.db.factionrealm.ignoredReporters = self.db.factionrealm.ignoredReporters .. start .. name;
 end
 
 function GuildGearRules:AddSorted(array, layer, toSort, text)

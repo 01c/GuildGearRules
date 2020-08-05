@@ -160,11 +160,15 @@ function GuildGearRulesUserInterface:SetupMinimapButton()
         end,
     });
     self.MinimapButton = LibStub("LibDBIcon-1.0");
-    self.MinimapButton:Register("GuildGearRules", lbd, self.Core.db.profile.MinimapButton);
+    self.MinimapButton:Register("GuildGearRules", lbd, self.Core.db.char.MinimapButton);
     self:RefreshMinimapButtonAlertState();
 end
 
-function GuildGearRulesUserInterface:RefreshMinimapButtonAlertState(state)
+function GuildGearRulesUserInterface:RefreshMinimapButtonAlertState()
+    local button = self.MinimapButton:GetMinimapButton("GuildGearRules");
+    -- Button might be disabled and not found, in that case do nothing.
+    if (button == nil ) then return; end
+
     local anyCheaters = false;
     for key, cheater in pairs(self.Core.Inspector.Cheaters) do
         if (cheater:CheatingDataCount() > 0) then
@@ -172,22 +176,24 @@ function GuildGearRulesUserInterface:RefreshMinimapButtonAlertState(state)
             break;
         end
     end
-    local icon = self.MinimapButton:GetMinimapButton("GuildGearRules").icon;
+
     if (anyCheaters) then
-        icon:SetVertexColor(1, 1, 1);
-        icon:SetTexture(self.MinimapButtonTextureActive);
+        button.icon:SetVertexColor(1, 1, 1);
+        button.icon:SetTexture(self.MinimapButtonTextureActive);
     else
-        icon:SetVertexColor(0.5, 0.5, 0.5);
-        icon:SetTexture(self.MinimapButtonTexture);
+        button.icon:SetVertexColor(0.5, 0.5, 0.5);
+        button.icon:SetTexture(self.MinimapButtonTexture);
     end
 end
 
 function GuildGearRulesUserInterface:ToggleMinimapButton()
-    self.Core.db.profile.MinimapButton.hide = not self.Core.db.profile.MinimapButton.hide; 
-    if (self.Core.db.profile.MinimapButton.hide) then 
+    self.Core.db.char.MinimapButton.hide = not self.Core.db.char.MinimapButton.hide; 
+    if (self.Core.db.char.MinimapButton.hide) then 
         self.MinimapButton:Hide("GuildGearRules"); 
     else 
         self.MinimapButton:Show("GuildGearRules");
+        -- Refresh the state of the minimap button since it could not be refreshed while disabled.
+        self:RefreshMinimapButtonAlertState();
     end
     self:Refresh();
 end
@@ -307,7 +313,7 @@ function GuildGearRulesUserInterface:GetOptions()
                                 name = L["CORE_MINIMAP_BUTTON"],
                                 desc = L["CORE_MINIMAP_BUTTON_DESC"],
                                 set = function(info,val) self:ToggleMinimapButton() end,
-                                get = function(info) return not self.Core.db.profile.MinimapButton.hide; end,
+                                get = function(info) return not self.Core.db.char.MinimapButton.hide; end,
                             },
                             startUpWarning = {
                                 order = 4,
@@ -857,8 +863,8 @@ function GuildGearRulesUserInterface:GetOptions()
                                 width = "full",
                                 multiline = true,
                                 name = L["LIST"],
-                                set = function(info, val) self.Core.db.profile.ignoredReporters = val; end,
-                                get = function() return self.Core.db.profile.ignoredReporters; end,
+                                set = function(info, val) self.Core.db.factionrealm.ignoredReporters = val; end,
+                                get = function() return self.Core.db.factionrealm.ignoredReporters; end,
                                 disabled = function() return not IsInGuild(); end,
 					        },
                         },
