@@ -596,7 +596,7 @@ end
 -- Prevent player from having to see the inspection results themselves, causing spam in the chat window.
 function GuildGearRules:OutgoingWhisperFilter(chatFrame, event, msg)
     local id = chatFrame:GetID();
-    if (self.IgnoreOutgoingWhispers[id] > 0 and msg ~= self.Constants.InspectRequest) then
+    if (self.IgnoreOutgoingWhispers[id] ~= nil and self.IgnoreOutgoingWhispers[id] > 0 and msg ~= self.Constants.InspectRequest) then
         self.IgnoreOutgoingWhispers[id] = self.IgnoreOutgoingWhispers[id] - 1;
         return true;
     end
