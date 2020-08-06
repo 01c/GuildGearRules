@@ -125,7 +125,7 @@ function GuildGearRules:OnInitialize()
     self.RealmLoaded = false;
 
     self.LastInspectRequest = 0;
-    self.IgnoreOutgoingWhispers = 0;
+    self.IgnoreOutgoingWhispers = { };
 
     local pattern = string.gsub(ERR_GUILD_JOIN_S, "%s", ".*");
     self.JoinGuildMessage = string.match(ERR_GUILD_JOIN_S, pattern);
@@ -136,8 +136,8 @@ function GuildGearRules:OnInitialize()
 
     self:RegisterChatCommand(L["CONFIG_COMMAND"] , "ChatCommand");
     self:RegisterChatCommand(L["CONFIG_COMMAND_LONG"], "ChatCommand");
-    ChatFrame_AddMessageEventFilter("CHAT_MSG_WHISPER_INFORM", function (_, event, msg) return self:OutgoingWhisperFilter(event, msg); end)
-    ChatFrame_AddMessageEventFilter("CHAT_MSG_WHISPER", function (_, event, msg, author) return self:IncomingWhisperFilter(event, msg, author); end)
+    ChatFrame_AddMessageEventFilter("CHAT_MSG_WHISPER_INFORM", function (chatFrame, event, msg) return self:OutgoingWhisperFilter(chatFrame, event, msg); end)
+    ChatFrame_AddMessageEventFilter("CHAT_MSG_WHISPER", function (chatFrame, event, msg, author) return self:IncomingWhisperFilter(chatFrame, event, msg, author); end)
     self:Log(tostring(self) .. " initialized.");
 
     self:LoadGuildSettings();
@@ -217,13 +217,17 @@ function GuildGearRules:Update()
     if (self.Inspector ~= nil) then self.Inspector:Update(); end
 end
 
-function GuildGearRules:Message(text, sender)
+function GuildGearRules:Message(text, sender, chatFrame)
     local start = self.Constants.AddOnMessagePrefix;
     if (sender ~= nil and sender ~= self.Player) then
         start = _cstr(L["MESSAGE_RECEIVED"], self.UI:ClassIDColored(sender.Name, sender.ClassID));
     end
 
-    print(start .. text);
+    chatFrame = chatFrame or DEFAULT_CHAT_FRAME;
+
+    if (chatFrame ~= nil) then
+        chatFrame:AddMessage(start .. text);
+    end
 end
 
 function GuildGearRules:GetDefaultRules()
@@ -590,19 +594,20 @@ function GuildGearRules:PlaySound(condition, soundID)
 end
 
 -- Prevent player from having to see the inspection results themselves, causing spam in the chat window.
-function GuildGearRules:OutgoingWhisperFilter(event, msg)
-    if (self.IgnoreOutgoingWhispers > 0 and msg ~= self.Constants.InspectRequest) then
-        self.IgnoreOutgoingWhispers = self.IgnoreOutgoingWhispers - 1;
+function GuildGearRules:OutgoingWhisperFilter(chatFrame, event, msg)
+    local id = chatFrame:GetID();
+    if (self.IgnoreOutgoingWhispers[id] > 0 and msg ~= self.Constants.InspectRequest) then
+        self.IgnoreOutgoingWhispers[id] = self.IgnoreOutgoingWhispers[id] - 1;
         return true;
     end
 end
 
 -- Replace inspects request with a message confirming if its success.
-function GuildGearRules:IncomingWhisperFilter(event, msg, author)
+function GuildGearRules:IncomingWhisperFilter(chatFrame, event, msg, author)
     if (msg == self.Constants.InspectRequest) then
         -- If inspection is on cooldown the player will not get notified about the attempt.
         if (self.db.profile.inspectNotify and (time() - self.LastInspectRequest >= self.db.profile.inspectCooldown)) then
-            self:Message(self:StripRealm(author) .. " inspected you.");
+            self:Message(self:StripRealm(author) .. " inspected you.", nil, chatFrame);
         end
         return true;
     end
@@ -627,16 +632,34 @@ function GuildGearRules:OnWhisper(event, text, targetPlayer)
                 local oldItemLinks = itemLinks
                 itemLinks = itemLinks .. C_Item.GetItemLink(itemLocation)
                 -- If new message exceeds max string length, send previous and reset message to current item only.
-                if string.len(itemLinks) > 255 then
-                    SendChatMessage(oldItemLinks, "WHISPER", GetDefaultLanguage("player"), targetPlayer)
-                    self.IgnoreOutgoingWhispers = self.IgnoreOutgoingWhispers + 1;
+                if (itemLinks:len() > 255) then
+                    self:SendGearReply(oldItemLinks, targetPlayer);
                     itemLinks = C_Item.GetItemLink(itemLocation)
                 end
             end
         end
         -- Send any lasting items.
-        SendChatMessage(itemLinks, "WHISPER", GetDefaultLanguage("player"), targetPlayer)
-        self.IgnoreOutgoingWhispers = self.IgnoreOutgoingWhispers + 1;
+        if (itemLinks:len() > 0) then
+            self:SendGearReply(itemLinks, targetPlayer);
+        end
+    end
+end
+
+function GuildGearRules:SendGearReply(contents, targetPlayer)
+    SendChatMessage(contents, "WHISPER", GetDefaultLanguage("player"), targetPlayer);
+
+    -- Go through all possible chat windows. (Max 10 here, actual Blizzard limit unknown)
+    for i = 1, 10 do 
+        -- Check if they contain the whisper channel.
+        local args = {GetChatWindowMessages(i)}; 
+        for j=1, #args do
+            if (args[j] == "WHISPER") then
+                -- Increment outgoing whispers to ignore.
+                if (self.IgnoreOutgoingWhispers[i] == nil) then self.IgnoreOutgoingWhispers[i] = 0; end
+                self.IgnoreOutgoingWhispers[i] = self.IgnoreOutgoingWhispers[i] + 1;
+                break;
+            end
+        end 
     end
 end
 

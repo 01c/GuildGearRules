@@ -1200,6 +1200,7 @@ end
 
 function GuildGearRulesUserInterface:ClassColored(text, classFileName)
     rPerc, gPerc, bPerc, argbHex = GetClassColor(classFileName);
+    text = text or "(Missing text)";
     local color = "|c" .. argbHex;
 	return color .. text .. "|r";
 end
