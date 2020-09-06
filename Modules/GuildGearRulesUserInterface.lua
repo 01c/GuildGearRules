@@ -1,4 +1,4 @@
-GuildGearRulesUserInterface = GuildGearRules:NewModule("GuildGearRulesUserInterface");
+GuildGearRulesUserInterface = GuildGearRules:NewModule("GuildGearRulesUserInterface", "AceHook-3.0");
 local L = LibStub("AceLocale-3.0"):GetLocale("GuildGearRules");
 local _cstr = string.format;
 
@@ -8,11 +8,18 @@ local DEBUG_MSG_TYPE = {
     INFO = 3,
 };
 
+local TOOLTIP_TYPE = {
+    BANNED = 1,
+    BANNED_PARTLY = 2,
+    ALWAYS_ALLOWED = 3,
+}
+
 local C = {
     GUILD = "|cff3ce13f",
     PARTY = "|cffaaa7ff",
     RULE = "|cffe6cc80",
     TITLE = "|cffffd100",
+    ATTRIBUTE = "|cff03f002",
     RED = "|cffcb2121",
     GREEN = "|cff49cb21",
     ORANGE = "|cffcb8121",
@@ -59,13 +66,13 @@ local CLASS_COLORS =
 	["HUNTER"] = "|cffabd473",
 	["ROGUE"] = "|cfffff569",
 	["PRIEST"] = "|cffffffff",
-    ["DEATHKNIGHT"] = "",
+    ["DEATHKNIGHT"] = "|cffc41f3b",
 	["SHAMAN"] = "|cff0070de",
 	["MAGE"] = "|cff40c7eb",
 	["WARLOCK"] = "|cff8787ed",
-    ["MONK"] = "",
+    ["MONK"] = "|cff00ff96",
 	["DRUID"] = "|cffff7d0a",
-    ["DEMONHUNTER"] = "",
+    ["DEMONHUNTER"] = "|cffa330c9",
 };
 
 local INVENTORY_SLOT =
@@ -123,10 +130,131 @@ function GuildGearRulesUserInterface:Initialize(core)
     if (not self.Core.db.profile.HideWarning) then
         self:ShowWarning();
     end
+    --[[
+    self:SecureHook(GameTooltip, "SetBagItem", "UpdateItemTooltip");
+    self:SecureHook(GameTooltip, "SetInventoryItem", "UpdateItemTooltip");
+    self:SecureHook(GameTooltip, "Hide", "HideTooltip");
+    self:SecureHook(ItemRefTooltip, "SetHyperlink", "OnSetHyperlink");
+    self:SecureHook(ItemRefTooltip, "Hide", "HideTooltip");
 
+    self.ExtendedTooltips = { };
+    self.ExtendedTooltips["GameTooltip"] = CreateFrame("GameTooltip", "GuildGearRulesExtendedGameTooltip", nil, "GameTooltipTemplate");
+    self.ExtendedTooltips["ItemRefTooltip"] = CreateFrame("GameTooltip", "GuildGearRulesExtendedItemRefTooltip", nil, "GameTooltipTemplate");
+    ]]--
     self.Core:Log(tostring(self) .. " initialized.");
     return self;
 end
+--[[
+function GuildGearRulesUserInterface:ShowWarningTooltip(tooltip, tooltipType, info)
+    local extendedTooltip = self.ExtendedTooltips[tooltip:GetName()];
+    if (extendedTooltip == nil) then return; end
+
+    local headerText = "";
+    if (tooltipType == TOOLTIP_TYPE.BANNED) then
+        headerText = Color(C.RED, L["TOOLTIP_BANNED"]);
+    elseif (tooltipType == TOOLTIP_TYPE.BANNED_PARTLY) then
+        headerText = Color(C.ORANGE, L["TOOLTIP_BANNED_PARTLY"]);
+    elseif (tooltipType == TOOLTIP_TYPE.ALWAYS_ALLOWED) then
+        headerText = Color(C.GREEN, L["TOOLTIP_ALLOWED"]);
+    end
+
+    if (true) then
+        local y = tooltip:GetTop();
+        local screenHeight = GetScreenHeight();
+        local anchors = { Base = "ANCHOR_TOP", First = { From = "BOTTOMLEFT", To = "TOPLEFT", }, Second = { From = "BOTTOMRIGHT", To = "TOPRIGHT", }, };
+        if (y ~= nil and screenHeight - y <= 100) then
+            anchors = { Base = "ANCHOR_BOTTOM", First = { From = "TOPLEFT", To = "BOTTOMLEFT", }, Second = { From = "TOPRIGHT", To = "BOTTOMRIGHT", }, };
+        end
+        extendedTooltip:SetOwner(tooltip, anchors.Base);
+        extendedTooltip:ClearLines();
+
+        extendedTooltip:AddDoubleLine(Color(C.TITLE, "Guild Gear Rules"), headerText);
+        if (info ~= nil) then
+            extendedTooltip:AddLine(info, 1, 1, 1, true);
+        end
+        extendedTooltip:Show();
+
+        extendedTooltip:SetPoint(anchors.First.From, tooltip, anchors.First.To, 0, 0)
+        extendedTooltip:SetPoint(anchors.Second.From, tooltip, anchors.Second.To, 0, 0)
+
+        for i = 1, extendedTooltip:NumLines() do 
+            local line = _G[extendedTooltip:GetName() .. "TextLeft"..i];
+            local lineRight = _G[extendedTooltip:GetName() .. "TextRight"..i];
+            line:SetFont("Fonts\\FRIZQT__.TTF", 10);
+            lineRight:SetFont("Fonts\\FRIZQT__.TTF", 10);
+        end
+    end
+
+    if (true) then
+        tooltip:AddLine(" ");
+        tooltip:AddDoubleLine(Color(C.TITLE, "Guild Gear Rules"), headerText);
+        if (info ~= nil) then
+            tooltip:AddLine(info, 1, 1, 1, true);
+        end
+        tooltip:Show();
+    end
+end
+
+function GuildGearRulesUserInterface:ValidateTooltip(tooltip, itemLink)
+    self:HideTooltip(tooltip);
+    if (itemLink ~= nil) then
+        local spellName, spellID = GetItemSpell(itemLink);
+
+        -- Check if it's a consumable which applies a banned buff.
+        if (spellID ~= nil) then
+            for i = 1, #self.Core.Rules.BannedBuffGroups do
+                local buffGroup = self.Core.Rules.BannedBuffGroups[i];
+                if (buffGroup.IDs:Contains(spellID)) then
+                    self:ShowWarningTooltip(tooltip, TOOLTIP_TYPE.BANNED_PARTLY, "Buff " .. self:Buff(spellID) .. " is banned from level " .. tostring(buffGroup.MinimumLevel) .. ".");
+                    return;
+                end
+            end
+        end
+
+        local itemID = select(3, self:HyperlinkInfo(itemLink));
+        -- Check if is allowed item.
+        if (self.Core.Rules.Items.AllowedIDs:Contains(itemID)) then
+            self:ShowWarningTooltip(tooltip, TOOLTIP_TYPE.ALWAYS_ALLOWED, "Exempted from the rules.");
+            return;
+        end
+
+        local quality = C_Item.GetItemQualityByID(itemLink);
+        if (quality ~= nil and quality > 2) then
+            self:ShowWarningTooltip(tooltip, TOOLTIP_TYPE.BANNED, "Exceeds " .. self:GetItemQualityText(self.Core.Rules.Items.MaxQuality) .. " quality.");
+        else
+            local attribute = self.Core.Inspector:HasBannedAttribute(tooltip, itemLink);
+            if (attribute) then
+                self:ShowWarningTooltip(tooltip, TOOLTIP_TYPE.BANNED, "Attribute " .. self:Attribute(attribute) .. " is banned.");
+            end
+        end
+    end
+end
+
+function GuildGearRulesUserInterface:OnSetHyperlink(tooltip, itemLink)
+    -- SetHyperlink might be called after the tooltip has been hidden, so better check if it's visible.
+    if (itemLink ~= nil and tooltip:IsVisible()) then
+        self:ValidateTooltip(tooltip, itemLink);
+    else
+        self:HideTooltip(tooltip);
+    end
+end
+
+function GuildGearRulesUserInterface:UpdateItemTooltip(tooltip)
+    local name, itemLink = tooltip:GetItem();
+    if (itemLink ~= nil) then
+        self:ValidateTooltip(tooltip, itemLink);
+    else
+        self:HideTooltip(tooltip);
+    end
+end
+
+function GuildGearRulesUserInterface:HideTooltip(tooltip)
+    local extended = self.ExtendedTooltips[tooltip:GetName()]
+    if (extended ~= nil) then
+        extended:Hide();
+    end
+end
+]]--
 
 function GuildGearRulesUserInterface:SetupMinimapButton()
     local lbd = LibStub("LibDataBroker-1.1"):NewDataObject("GuildGearRules", {
@@ -438,10 +566,14 @@ function GuildGearRulesUserInterface:GetOptions()
                         name = L["RULES_LIMITATIONS"],
                         guiInline = true,
                         args = {
-                            level = {
-                                order = 0,
-                                type = "header",
-                                name = function () if (self.Core.Rules.Apply.Level == 0) then return L["RULES_LIMITATIONS_ALL_LEVELS"] else return _cstr(L["RULES_LIMITATIONS_LEVEL"], self.Core.Rules.Apply.Level) end end ,
+                            capitals = {
+                                order = 1,
+                                type = "toggle",
+                                cmdHidden = true,
+                                width = 0.7,
+                                name = "|cfffffbff" .. L["RULES_LIMITATIONS_CAPITALS"] .. "|r",
+                                desc = L["RULES_LIMITATIONS_ZONE_DESC"],
+                                get = function(info) return self.Core.Rules.Apply.Capitals end,
                             },
                             world = {
                                 order = 1,
@@ -449,6 +581,7 @@ function GuildGearRulesUserInterface:GetOptions()
                                 cmdHidden = true,
                                 width = 0.7,
                                 name = "|cfffffbff" .. L["RULES_LIMITATIONS_WORLD"] .. "|r",
+                                desc = L["RULES_LIMITATIONS_ZONE_DESC"],
                                 get = function(info) return self.Core.Rules.Apply.World end,
                             },
                             dungeons = {
@@ -457,6 +590,7 @@ function GuildGearRulesUserInterface:GetOptions()
                                 cmdHidden = true,
                                 width = 0.7,
                                 name = "|cffaaa7ff" .. L["RULES_LIMITATIONS_DUNGEONS"] .. "|r",
+                                desc = L["RULES_LIMITATIONS_ZONE_DESC"],
                                 get = function(info) return self.Core.Rules.Apply.Dungeons end,
                             },
                             raid = {
@@ -465,6 +599,7 @@ function GuildGearRulesUserInterface:GetOptions()
                                 cmdHidden = true,
                                 width = 0.7,
                                 name = "|cffff4709" .. L["RULES_LIMITATIONS_RAIDS"] .. "|r",
+                                desc = L["RULES_LIMITATIONS_ZONE_DESC"],
                                 get = function(info) return self.Core.Rules.Apply.Raids end,
                             },
                             battleground = {
@@ -473,8 +608,20 @@ function GuildGearRulesUserInterface:GetOptions()
                                 cmdHidden = true,
                                 width = 0.7,
                                 name = "|cffff7d00" .. L["RULES_LIMITATIONS_BATTLEGROUNDS"] .. "|r",
+                                desc = L["RULES_LIMITATIONS_ZONE_DESC"],
                                 get = function(info) return self.Core.Rules.Apply.Battlegrounds end,
                             },
+                            level = {
+                                order = 5,
+                                type = "description",
+                                name = function () return Color(C.RULE, L["RULES_LIMITATIONS_LEVELS"]) .. ": " .. self:GetRulesLevel(self.Core.Rules.Apply.Level); end,
+                            },
+                            excludedRanks = {
+                                order = 6,
+                                type = "description",
+                                name = function() return Color(C.RULE, _cstr(L["RULES_LIMITATIONS_RANKS"], Color(C.GREEN, "Applied"), Color(C.ORANGE, "Excluded")) .. ":\n") .. self:GetExcludedRanks(self.Core.Rules.ExcludedRanks) end,
+                                fontSize = "small",
+					        },
                         },
                     },
                     items = {
@@ -1121,12 +1268,35 @@ function GuildGearRulesUserInterface:GetItemsAllowed()
     return text;
 end
 
+function GuildGearRulesUserInterface:GetRulesLevel(level)
+    if (level == 0) then return L["RULES_LIMITATIONS_LEVEL_ALL"] else return _cstr(L["RULES_LIMITATIONS_LEVEL"], level) end 
+end
+
+function GuildGearRulesUserInterface:GetExcludedRanks(ranks)
+    local text = "";
+    for i = 1, GuildControlGetNumRanks() do
+        local name = GuildControlGetRankName(i);
+        if (name ~= nil) then
+            local color = C.GREEN;
+            if (ranks:Contains(i)) then color = C.ORANGE; end
+            text = text .. "#" .. i .. " " .. Color(color, "[" .. name .. "]") .. "\n";
+        end
+    end
+
+    -- No attributes enabled.
+    if (text == "") then
+        text = "-";
+    end
+
+    return text;
+end
+
 function GuildGearRulesUserInterface:GetBannedAttributes()
     local text = "";
     for i = 1, #self.Core.Rules.Items.BannedAttributes do
         local attribute = self.Core.Rules.Items.BannedAttributes[i];
         if (attribute.Name ~= nil) then
-            text = text .. "|cfffffc01[" .. attribute.Name .. "]|r ";
+            text = text .. self:Attribute(attribute) .. " ";
         end
     end
 
@@ -1224,9 +1394,17 @@ function GuildGearRulesUserInterface:Buff(spellID)
     return "|cffffd100[" .. name .. "]|r";
 end
 
+function GuildGearRulesUserInterface:Attribute(attribute)
+    if (attribute == nil or attribute.Name == nil) then
+        return "Missing text";
+    end
+
+    return Color(C.ATTRIBUTE, "[" .. attribute.Name .. "]");
+end
+
 function GuildGearRulesUserInterface:GetItemQualityText(val)
     if (val == nil) then return "-"; end
-    return ITEM_QUALITY_COLORS[val].hex .._G["ITEM_QUALITY" .. val .. "_DESC"] .. " |r";
+    return ITEM_QUALITY_COLORS[val].hex .._G["ITEM_QUALITY" .. val .. "_DESC"] .. "|r";
 end
 
 function GuildGearRulesUserInterface:DeadItemLink(itemID)
@@ -1236,4 +1414,10 @@ function GuildGearRulesUserInterface:DeadItemLink(itemID)
         return "|cff889d9d[" .. itemID .. "]|r";
     end
     return ITEM_QUALITY_COLORS[quality].hex .. "[" .. C_Item.GetItemNameByID(itemID) .. "]" .. "|r";
+end
+
+function GuildGearRulesUserInterface:HyperlinkInfo(hyperlink)
+    local _, _, Color, Ltype, Id, Enchant, Gem1, Gem2, Gem3, Gem4, Suffix, Unique, LinkLvl, Name = string.find(hyperlink,
+    "|?c?f?f?(%x*)|?H?([^:]*):?(%d+):?(%d*):?(%d*):?(%d*):?(%d*):?(%d*):?(%-?%d*):?(%-?%d*):?(%d*):?(%d*):?(%-?%d*)|?h?%[?([^%[%]]*)%]?|?h?|?r?");
+    return Color, Ltype, tonumber(Id), Enchant, Gem1, Gem2, Gem3, Gem4, Suffix, Unique, LinkLvl, Name;
 end

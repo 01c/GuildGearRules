@@ -257,7 +257,7 @@ function GuildGearRulesInspector:AttemptScan(unitID)
 end
 
 function GuildGearRulesInspector:RulesApply(unitID)
-    return UnitLevel(unitID) >= self.Core.Rules.Apply.Level;
+    return (UnitLevel(unitID) >= self.Core.Rules.Apply.Level and not self.Core.Rules.ExcludedRanks:Contains(C_GuildInfo.GetGuildRankOrder(UnitGUID(unitID))));
 end
 
 function GuildGearRulesInspector:ShouldScan(unitID)
@@ -405,6 +405,28 @@ function GuildGearRulesInspector:ValidateItem(characterInfo, slot)
     return false;
 end
 
+function GuildGearRulesInspector:HasBannedAttribute(tooltip, itemLink)
+    for i = 1, tooltip:NumLines() do 
+        local line = _G[tooltip:GetName() .. "TextLeft"..i];
+        if (line ~= nil) then
+            local text = line:GetText();
+
+            if (text == RETRIEVING_ITEM_INFO) then
+                self.Core:Log(itemLink .. " still retreiving information.", DEBUG_MSG_TYPE.ERROR);
+                break;
+            end
+
+            for i=1, #self.Core.Rules.Items.BannedAttributes do
+                local attribute = self.Core.Rules.Items.BannedAttributes[i];
+                if (text:gsub('%d', '') == attribute.Pattern) then
+                    return attribute;
+                end
+            end
+        end
+    end
+    return nil;
+end
+
 function GuildGearRulesInspector:ValidateItemAttributes(itemID, itemLink, slot, characterInfo)
     itemName = C_Item.GetItemNameByID(itemID);
     if (itemName == nil) then
@@ -416,25 +438,9 @@ function GuildGearRulesInspector:ValidateItemAttributes(itemID, itemLink, slot, 
 
     self.ScannerTooltip:ClearLines();
     self.ScannerTooltip:SetHyperlink("item:" .. itemID);
-    for i = 1, self.ScannerTooltip:NumLines() do 
-        local line = _G["GuildGearRulesScannerTooltipTextLeft"..i];
-        if (line ~= nil) then
-            local text=line:GetText();
-
-            if (text == RETRIEVING_ITEM_INFO) then
-                self.Core:Log(itemLink .. " still retreiving information.", DEBUG_MSG_TYPE.ERROR);
-                break;
-            end
-
-            for i=1, #self.Core.Rules.Items.BannedAttributes do
-                local attribute = self.Core.Rules.Items.BannedAttributes[i];
-                if (text:gsub('%d', '') == attribute.Pattern) then
-                    self:RegisterItemCheat(characterInfo, itemID, itemLink, slot);
-                    bannedAttributesFound = true;
-                    break;
-                end
-            end
-        end
+    if (self:HasBannedAttribute(self.ScannerTooltip, itemLink)) then
+        self:RegisterItemCheat(characterInfo, itemID, itemLink, slot);
+        bannedAttributesFound = true;
     end
 
     -- This item is okay, remove item previously on slot.

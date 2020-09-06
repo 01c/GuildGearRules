@@ -19,6 +19,33 @@ local ITEM_FAMILIES = {
 	},
 };
 
+local CAPITAL_ZONES = {
+    1453, -- Stormwind City
+    1455, -- Ironforge
+    1457, -- Darnassus
+    1454, -- Orgrimmar
+    1456, -- Thunder Bluff
+    1458, -- Undercity
+};
+
+if _G.WOW_PROJECT_ID == _G.WOW_PROJECT_MAINLINE then
+    CAPITAL_ZONES = {
+        84, -- Stormwind City
+        87, -- Ironforge
+        89, -- Darnassus
+        103, -- The Exodar
+        85, -- Orgrimmar
+        88, -- Thunder Bluff
+        90, -- Undercity
+        110, -- Silvermoon City
+        111, -- Shattrath City
+        125, -- Dalaran - Dalaran City (Crystalsong Forest)
+        126, -- Dalaran - The Underbelly (Crystalsong Forest)
+        625, -- Dalaran (Broken Isles)
+        1165, -- Dazar'alor
+	};
+end
+
 local BUFF_FAMILIES = {
      {
         Tag = "WB",
@@ -198,6 +225,7 @@ function GuildGearRules:EveryMinute()
 
     -- Check for new guild information.
     local guildInfo = GetGuildInfoText();
+    -- If retrieved guild info is nil zero or same, don't load new.
     if (guildInfo == nil or guildInfo:len() == 0 or guildInfo == self.LastRetrievedGuildInfo) then return; end
     self:LoadGuildSettings();
 end
@@ -234,6 +262,7 @@ function GuildGearRules:GetDefaultRules()
     local defaultRules = {
         Apply = {
             Level = 0,
+            Capitals = true,
             World = true,
             Dungeons = true,
             Raids = true,
@@ -245,6 +274,7 @@ function GuildGearRules:GetDefaultRules()
             BannedAttributes = GuildGearRulesTable:New{ },
             AllowedIDs = GuildGearRulesTable:New{ },
 		},
+        ExcludedRanks = GuildGearRulesTable:New{ },
         BannedBuffGroups = GuildGearRulesTable:New{ },
     };
     return defaultRules;
@@ -259,6 +289,10 @@ function GuildGearRules:GetSettingTags()
         {
             Identifier = "AP",
             Found = function() self.Rules.Items.BannedAttributes:Add({ Name =  L["RULES_TAG_AP"], Pattern = L["ATTRIBUTE_ATTACKPOWER"] } ); end,
+	    },
+        {
+            Identifier = "A0",
+            Found = function() self.Rules.Apply.Capitals = false; end,
 	    },
         {
             Identifier = "A1",
@@ -299,6 +333,18 @@ function GuildGearRules:GetSettingTags()
                         else
                             self:HandleIDArgument(subArg, buffGroup.IDs, BUFF_FAMILIES, "spell");
                         end
+                    end
+                end
+            end,
+	    },
+        {
+            Identifier = "R%(([%d%.]+)%)",
+            Type = "List",
+            Found = 
+            function(args)
+                if (args ~= nil) then
+                    for subArg in args:gmatch('[^%.%s]+') do
+                        self.Rules.ExcludedRanks:Add(tonumber(subArg));
                     end
                 end
             end,
@@ -471,6 +517,12 @@ function GuildGearRules:RuledZone()
     if (not self.Rules.Apply.Raids and instanceType == "raid") then return false; end
     if (not self.Rules.Apply.Dungeons and instanceType == "party") then return false; end
     if (not self.Rules.Apply.Battlegrounds and C_PvP.IsPVPMap()) then return false; end
+    if (not self.Rules.Apply.Capitals) then
+        local id = C_Map.GetBestMapForUnit("player"); 
+        for i = 1, #CAPITAL_ZONES do
+            if (id == CAPITAL_ZONES[i]) then return false; end
+        end
+    end
     return self.Rules.Apply.World;
 end
 
