@@ -508,22 +508,36 @@ function GuildGearRules:Log(text, msgType)
 end
 
 function GuildGearRules:ClearLogs()
-    self.LastLog = ""
-    self.LogLines = { }
+    self.LastLog = "";
+    self.LogLines = { };
+end
+
+function GuildGearRules:IsInCapital()
+    local id = C_Map.GetBestMapForUnit("player");
+    for i = 1, #CAPITAL_ZONES do
+        if (id == CAPITAL_ZONES[i]) then
+            return true;
+        end
+    end
+    return false;
 end
 
 function GuildGearRules:RuledZone()
+    -- Returns wether player is in ruled zone or not.
     local inInstance, instanceType = IsInInstance();
-    if (not self.Rules.Apply.Raids and instanceType == "raid") then return false; end
-    if (not self.Rules.Apply.Dungeons and instanceType == "party") then return false; end
-    if (not self.Rules.Apply.Battlegrounds and C_PvP.IsPVPMap()) then return false; end
-    if (not self.Rules.Apply.Capitals) then
-        local id = C_Map.GetBestMapForUnit("player"); 
-        for i = 1, #CAPITAL_ZONES do
-            if (id == CAPITAL_ZONES[i]) then return false; end
-        end
+
+    if (instanceType == "raid") then
+        return self.Rules.Apply.Raids;
+    elseif (instanceType == "party") then
+        return self.Rules.Apply.Dungeons;
+    elseif (C_PvP.IsPVPMap()) then
+        return self.Rules.Apply.Battlegrounds;
+    elseif (self:IsInCapital()) then
+        return self.Rules.Apply.Capitals;
+    else
+        -- Player is not in raid, dungeon, battleground or capital, assume it is in the world.
+        return self.Rules.Apply.World;
     end
-    return self.Rules.Apply.World;
 end
 
 -- IsGuildMember("Tonedo") | IsGuildMember("Tonedo-HydraxianWaterlords"), IsGuildMember("Tonedo", nil) IsGuildMember("Tonedo", "HydraxianWaterlords")
