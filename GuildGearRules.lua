@@ -148,7 +148,6 @@ function GuildGearRules:OnInitialize()
     self.Cache:Load(self.Constants.AlertTestItemID);
 
     self.LastRetrievedGuildInfo = nil;
-    self.GuildSettingsLoaded = false;
     self.RealmLoaded = false;
 
     self.LastInspectRequest = 0;
@@ -223,18 +222,14 @@ end
 function GuildGearRules:EveryMinute()
     self.Network:EveryMinute();
 
-    -- Check for new guild information.
-    local guildInfo = GetGuildInfoText();
-    -- If retrieved guild info is nil zero or same, don't load new.
-    if (guildInfo == nil or guildInfo:len() == 0 or guildInfo == self.LastRetrievedGuildInfo) then return; end
     self:LoadGuildSettings();
 end
 
 function GuildGearRules:Update()
     if (not self.RealmLoaded) then self:LoadRealm(); end
-    if (not self.GuildSettingsLoaded) then self:LoadGuildSettings(); end
+    if (not self.Rules.Loaded) then self:LoadGuildSettings(); end
 
-    if (not self.RealmLoaded or not self.GuildSettingsLoaded or self.Rules.Items.MaxQuality == nil or not IsInGuild()) then
+    if (not self.RealmLoaded or not self.Rules.Loaded or not IsInGuild()) then
         self.Inspector:SetActive(false);
         return;
     end
@@ -260,6 +255,7 @@ end
 
 function GuildGearRules:GetDefaultRules()
     local defaultRules = {
+        Loaded = false,
         Apply = {
             Level = 0,
             Capitals = true,
@@ -360,23 +356,35 @@ end
 
 function GuildGearRules:LoadGuildSettings()
     self.Inspector:SetActive(false);
-    self.GuildSettingsLoaded = false;
     self:Log("Attempting to load guild settings.");
-    -- Make sure rules are defaulted first.
-    self.Rules = self:GetDefaultRules();
 
     if (IsInGuild()) then
+        -- Check for latest guild information.
         local guildInfo = GetGuildInfoText();
-        if (guildInfo == nil or string.len(guildInfo) == 0) then
-            self:Log("Failed retrieving guild info text.");
+
+        if (guildInfo == nil) then 
+            self:Log("Guild info returned NIL, keeping old settings.");
+            return; 
+        end
+      
+        if (string.len(guildInfo) == 0) then
+            self:Log("Guild info returned empty, keeping old settings.");
             return;
+        end
+
+        if (guildInfo == self.LastRetrievedGuildInfo) then 
+            self:Log("Guild info returned same as before, keeping old settings.");
+            return; 
         end
 
         self.Guild = GetGuildInfo("player")
         if (self.Guild == nil or string.len(self.Guild) == 0) then
-            self:Log("Failed retrieving guild name.");
+            self:Log("Failed retrieving guild name, keeping old settings.");
             return;
         end
+        
+        -- Proceed, make sure rules are defaulted first.
+        self.Rules = self:GetDefaultRules();
 
         self.LastRetrievedGuildInfo = guildInfo;
 
@@ -385,6 +393,7 @@ function GuildGearRules:LoadGuildSettings()
         local arguments = string.match(guildInfo, "GGR%[([%w,]+)%]");
         -- Loop through default arguments.
         if (arguments ~= nil) then
+            self:Log("Loading main arguments: " .. arguments);
             local argIndex = 0;
             for arg in arguments:gmatch('[^,]+') do
                 if (argIndex == 0) then
@@ -396,34 +405,39 @@ function GuildGearRules:LoadGuildSettings()
                 end
                 argIndex = argIndex + 1;
             end
-        end
 
-        -- Capture all alphanumeric {%w} and comma {,} and dot {%.} and parentheses {%(%)} characters within the square brackets.
-        arguments = string.match(guildInfo, "GGRTags%[([%w,%.%(%)]+)%]");
-        -- Loop through tag arguments.
-        if (arguments ~= nil) then
-            for arg in arguments:gmatch('[^,]+') do
-                -- Check argument against all tags.
-                for i=1, #self.SettingTags do
-                    local tag = self.SettingTags[i];
-                    local args = string.match(arg, tag.Identifier);
-                    if (args) then
-                        tag.Found(args);
-                        break;
+            -- Capture all alphanumeric {%w} and comma {,} and dot {%.} and parentheses {%(%)} characters within the square brackets.
+            arguments = string.match(guildInfo, "GGRTags%[([%w,%.%(%)]+)%]");
+            -- Loop through tag arguments.
+            if (arguments ~= nil) then
+                self:Log("Loading tag arguments: " .. arguments);
+                for arg in arguments:gmatch('[^,]+') do
+                    -- Check argument against all tags.
+                    for i=1, #self.SettingTags do
+                        local tag = self.SettingTags[i];
+                        local args = string.match(arg, tag.Identifier);
+                        if (args) then
+                            tag.Found(args);
+                            break;
+                        end
                     end
                 end
             end
-        end
 
-        self:Log("Loaded settings for " .. self.Guild .. ".");
+            -- Cache all required items.
+            for key, value in ipairs(self.Rules.Items.AllowedIDs) do
+                self.Cache:Load(value);
+            end
 
-        -- Cache all required items.
-        for key, value in ipairs(self.Rules.Items.AllowedIDs) do
-            self.Cache:Load(value);
+            self:Log("Loaded settings for " .. self.Guild .. ".");
+            self.Rules.Loaded = true;
+        else
+            self:Log("No GGR tag found in guild information, rules defaulted.");
         end
+    else
+        -- No guild, default settings.
+        self.Rules = self:GetDefaultRules();
     end
-
-    self.GuildSettingsLoaded = true;
 end
 
 function GuildGearRules:HandleIDArgument(arg, list, idList, type)
@@ -730,7 +744,7 @@ function GuildGearRules:SendGearReply(contents, targetPlayer)
 end
 
 function GuildGearRules:OnGuildUpdate(event, unitID)
-    self:Log("Received guild update.");
+    self:Log("Received guild update for " .. unitID .. ".");
     if (unitID ~= "player") then
         return;
     end

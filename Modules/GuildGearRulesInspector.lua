@@ -22,8 +22,8 @@ function GuildGearRulesInspector:Initialize(core)
     self.Hooked = false;
     self.InspectedUnitID = nil;
     self.Cheaters = { };
-     -- Dont check shirts or tabards.
-    self.InventorySlots = { 0, 1, 2, 3, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18 };
+     -- Dont check shirts, ammo or tabards.
+    self.InventorySlots = { 1, 2, 3, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18 };
     self.ScannerTooltip = CreateFrame("GameTooltip", "GuildGearRulesScannerTooltip", nil, "GameTooltipTemplate");
     self.ScannerTooltip:SetOwner(WorldFrame, "ANCHOR_NONE");
 
@@ -184,10 +184,9 @@ function GuildGearRulesInspector:AlertStopped(name, classID, sender)
 end
 
 function GuildGearRulesInspector:ScanPlayer()
-    self.Core:Log("Scanning player.");
-
     if (self:RulesApply(self.Core.Player.UnitID)) then
         self:ScanUnit(self.Core.Player);
+        self.Core:Log("Scanning player.");
     end
 end
 
@@ -380,8 +379,8 @@ function GuildGearRulesInspector:ValidateItem(characterInfo, slot)
             if (itemQuality > self.Core.Rules.Items.MaxQuality) then
                 self:RegisterItemCheat(characterInfo, itemID, itemLink, slot);
                 removeItem = false;
-            -- Quality okay, check attributes on items that are at least green (ignore grays and whites for performance)
-            elseif (itemQuality >= 2) then
+            -- Quality okay, check attributes. This previously ignore grays and whites for performance, but resulted in for example blues being replaced with whites not being triggered.
+            else
                 local cacheItem = self.Core.Cache:New(itemID, true);
                 cacheItem.Meta = {
                     CharacterInfo = characterInfo,

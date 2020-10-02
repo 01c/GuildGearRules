@@ -557,7 +557,7 @@ function GuildGearRulesUserInterface:GetOptions()
                         order = 1,
                         type = "header",
                         cmdHidden = true,
-                        name = function() if not IsInGuild() then return L["RULES_NOT_IN_GUILD"] else return _cstr(L["RULES_LOADED"], Color(C.GUILD, GetGuildInfo("player"))) end end,
+                        name = function() if not self.Core.Rules.Loaded then return L["RULES_NOT_LOADED"] else return _cstr(L["RULES_LOADED"], Color(C.GUILD, GetGuildInfo("player"))) end end,
 					},
                     limitations = {
                         order = 2,

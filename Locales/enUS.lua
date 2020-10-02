@@ -106,7 +106,7 @@ L["INSPECTION_COOLDOWN_DESC"] = "Limit possible spam by setting a cooldown on re
 
 -- Rules tab.
 L["RULES"] = "Rules"
-L["RULES_NOT_IN_GUILD"] = "Not in a guild."
+L["RULES_NOT_LOADED"] = "No rules loaded"
 L["RULES_LOADED"] = "Rules loaded for %s"
 
 L["RULES_LIMITATIONS"] = "Limitations"
